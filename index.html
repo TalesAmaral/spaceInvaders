@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<script src=" https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js "></script>
+	</head>
+	<body>
+
+		<script>
+			const w = 800;
+			const h = 600;
+			var config = {
+				width: w,
+				height: h,
+				type: Phaser.AUTO,
+				physics: {
+					default: 'arcade',
+				},
+				scene: {
+					preload:preload,
+					create: create,
+					update: update
+				}
+			};
+
+			let game = new Phaser.Game(config);
+			let velocidade;
+			let enemyGroup;
+			let enemyGroupBullets;
+			let playerGroupBullets;
+			
+			let player;
+			let cursors;
+			let contador1;
+			let contador2;
+			let enemy;
+
+			function preload() {
+				this.load.image('ship', 'fmship.png');				
+			}
+
+			function create() {
+				
+				velocidade = 100;
+				contador1 = 100;
+				contador2 = 1;
+				player = this.physics.add.image(400, 300, 'ship');
+				this.physics.add.existing(player);
+				cursors = this.input.keyboard.createCursorKeys();
+
+				enemyGroup = this.physics.add.group();
+				enemyGroupBullets = this.physics.add.group();
+				playerGroupBullets = this.physics.add.group();
+
+				this.physics.add.collider(
+					playerGroupBullets,
+					enemyGroup,
+					(bullet, enemy) => {enemy.destroy(); bullet.destroy()}
+				);
+			}
+			
+			function update() {
+				player.setVelocityY(0);
+				player.setVelocityX(0);
+				const rightIsPressed = cursors.right.isDown
+				const leftIsPressed = cursors.left.isDown
+				if (cursors.left.isDown) {
+					player.angle -= 5
+				}
+				else if (cursors.right.isDown) {
+					player.angle += 5
+				}
+				if (cursors.up.isDown) {
+					const angle = player.angle - 90;
+					
+					player.setVelocityY(velocidade*Math.sin(angle*Math.PI/180));
+					player.setVelocityX(velocidade*Math.cos(angle*Math.PI/180));
+				} else if (cursors.down.isDown) {
+					const angle = player.angle + 90;
+
+					-player.setVelocityY(velocidade*Math.sin(angle*Math.PI/180));
+					-player.setVelocityX(velocidade*Math.cos(angle*Math.PI/180));
+				}
+				if(cursors.space.isDown) {
+					shoot(this);
+				}
+				if (contador1 ==100){
+
+
+					for (let i = 0; i<contador2; i++){
+						enemy = enemyGroup.create(100,100, "ship");
+					}
+					contador1= 0;
+					contador2++;
+				}
+
+				contador1++;
+
+			}
+
+			function shoot(phaser) {
+				const angle = player.angle - 90;
+				const sinA = Math.sin(angle*Math.PI/180)
+				const cosA = Math.cos(angle*Math.PI/180)
+				const velBala = 1000;
+				const bala = phaser.add.rectangle(player.x, player.y, 10, 10, 0x00FF00);
+				phaser.physics.add.existing(bala);
+				
+				console.log(velBala*cosA)
+				phaser.children.bringToTop(player);
+				playerGroupBullets.add(bala);
+				bala.body.setVelocityY(velBala*sinA);
+				bala.body.setVelocityX(velBala*cosA);
+			}	
+		</script>
+
+	</body>
+</html>
