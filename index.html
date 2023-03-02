@@ -36,10 +36,12 @@
 
 			function preload() {
 				this.load.image('ship', 'fmship.png');				
+				this.load.image('space', 'space.png');
 			}
 
 			function create() {
 				
+				ts = this.add.tileSprite(0, 0, w, h, 'space').setOrigin(0);
 				velocidade = 100;
 				contador1 = 100;
 				contador2 = 1;
