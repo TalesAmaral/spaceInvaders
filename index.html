@@ -8,7 +8,9 @@
 		<script>
 			const w = 800;
 			const h = 600;
-			var config = {
+			const mapWidth = 1024;
+			const mapHeight = 2048;
+			let config = {
 				width: w,
 				height: h,
 				type: Phaser.AUTO,
@@ -18,101 +20,135 @@
 				scene: {
 					preload:preload,
 					create: create,
-					update: update
+					update: update,
 				}
 			};
 
-			let game = new Phaser.Game(config);
-			let velocidade;
+			const game = new Phaser.Game(config);
+			const velocidadeJogador = 150;
 			let enemyGroup;
 			let enemyGroupBullets;
 			let playerGroupBullets;
 			
 			let player;
 			let cursors;
-			let contador1;
-			let contador2;
-			let enemy;
 
 			function preload() {
 				this.load.image('ship', 'fmship.png');				
 				this.load.image('space', 'space.png');
+				this.load.image('bala', 'bullet.png');
 			}
 
 			function create() {
-				
-				ts = this.add.tileSprite(0, 0, w, h, 'space').setOrigin(0);
-				velocidade = 100;
-				contador1 = 100;
-				contador2 = 1;
-				player = this.physics.add.image(400, 300, 'ship');
-				this.physics.add.existing(player);
-				cursors = this.input.keyboard.createCursorKeys();
-
-				enemyGroup = this.physics.add.group();
-				enemyGroupBullets = this.physics.add.group();
-				playerGroupBullets = this.physics.add.group();
-
-				this.physics.add.collider(
-					playerGroupBullets,
-					enemyGroup,
-					(bullet, enemy) => {enemy.destroy(); bullet.destroy()}
-				);
+				addSprites(this)
+				createGroups(this)
+				addInputs(this)
+				addPhysics(this)
+				setCamera(this)
+				startGame(this)
 			}
 			
 			function update() {
-				player.setVelocityY(0);
-				player.setVelocityX(0);
-				const rightIsPressed = cursors.right.isDown
+				atualizarVelocidade(player, 0, 0)
+
 				const leftIsPressed = cursors.left.isDown
-				if (cursors.left.isDown) {
+				const rightIsPressed = cursors.right.isDown
+				const upIsPressed = cursors.up.isDown
+				const downIsPressed = cursors.down.isDown
+				const spaceIsPressed = cursors.space.isDown
+				
+				if (leftIsPressed) {
 					player.angle -= 5
 				}
-				else if (cursors.right.isDown) {
+				else if (rightIsPressed) {
 					player.angle += 5
 				}
-				if (cursors.up.isDown) {
-					const angle = player.angle - 90;
-					
-					player.setVelocityY(velocidade*Math.sin(angle*Math.PI/180));
-					player.setVelocityX(velocidade*Math.cos(angle*Math.PI/180));
-				} else if (cursors.down.isDown) {
-					const angle = player.angle + 90;
 
-					-player.setVelocityY(velocidade*Math.sin(angle*Math.PI/180));
-					-player.setVelocityX(velocidade*Math.cos(angle*Math.PI/180));
+				const angle = player.rotation - Math.PI/2;
+
+				if (upIsPressed) {	
+					atualizarVelocidade(player, velocidadeJogador, angle)
+				} else if (downIsPressed) {
+					atualizarVelocidade(player, -velocidadeJogador, angle)
 				}
-				if(cursors.space.isDown) {
+
+				if (spaceIsPressed) {
 					shoot(this);
 				}
-				if (contador1 ==100){
+			}
 
+			function startGame(phaser) {
+				setInterval(() => {
+					const { enemyPosX, enemyPosY } = generateRandomEnemyPos();
+					enemyGroup.create(enemyPosX, enemyPosY, "ship");
+				}, 1000);
+			}
 
-					for (let i = 0; i<contador2; i++){
-						enemy = enemyGroup.create(100,100, "ship");
-					}
-					contador1= 0;
-					contador2++;
-				}
+			function addSprites(phaser) {
+				phaser.add.tileSprite(0, 0, mapWidth, mapHeight, 'space').setOrigin(0);
+				player = phaser.physics.add.image(mapWidth/2, mapHeight/2, 'ship');
+			}
 
-				contador1++;
+			function createGroups(phaser) {
+				enemyGroup = phaser.physics.add.group();
+				enemyGroupBullets = phaser.physics.add.group();
+				playerGroupBullets = phaser.physics.add.group();
+			}
 
+			function addPhysics(phaser) {
+				phaser.physics.add.existing(player);
+
+				phaser.physics.add.collider(
+					playerGroupBullets,
+					enemyGroup,
+					(bullet, enemy) => {enemy.destroy(); bullet.destroy()}
+				);		
+			}
+			
+			function addInputs(phaser) {
+				cursors = phaser.input.keyboard.createCursorKeys();
+			}
+
+			function setCamera(phaser) {
+				phaser.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
+				phaser.physics.world.setBounds(0, 0, mapWidth, mapHeight);
+				player.setCollideWorldBounds(true);
+				phaser.cameras.main.startFollow(player, true);
+			}
+
+			function generateRandomEnemyPos() {
+				const enemyPosX = Math.floor(Math.random() * mapWidth)
+				const enemyPosY = Math.abs(enemyPosX - player.x) < w/2 ? (Math.random() * (mapHeight-h) + player.y + h/2) % mapHeight : Math.random() * (mapHeight)
+				return { enemyPosX, enemyPosY }
 			}
 
 			function shoot(phaser) {
-				const angle = player.angle - 90;
-				const sinA = Math.sin(angle*Math.PI/180)
-				const cosA = Math.cos(angle*Math.PI/180)
+				const angle = player.rotation - Math.PI/2;
 				const velBala = 1000;
-				const bala = phaser.add.rectangle(player.x, player.y, 10, 10, 0x00FF00);
-				phaser.physics.add.existing(bala);
+				const bala = 	playerGroupBullets.create(player.x, player.y, "bala");
+				bala.setScale(.04)
+				bala.angle = player.angle;
 				
-				console.log(velBala*cosA)
 				phaser.children.bringToTop(player);
 				playerGroupBullets.add(bala);
-				bala.body.setVelocityY(velBala*sinA);
-				bala.body.setVelocityX(velBala*cosA);
-			}	
+				atualizarVelocidade(bala, velBala, angle);
+
+				bala.setCollideWorldBounds(true);
+				bala.body.onWorldBounds = true;
+				bala.body.world.on('worldbounds', deleteBullet, bala);
+			}
+
+			function deleteBullet(body) {
+				if (body.gameObject === this) {
+					this.setActive(false);
+					this.setVisible(false);
+				}
+			}
+
+			function atualizarVelocidade(entidade, vel, angle){
+				entidade.setVelocityY(vel * Math.sin(angle));
+				entidade.setVelocityX(vel * Math.cos(angle));
+			}
 		</script>
 
 	</body>
