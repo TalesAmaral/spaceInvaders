@@ -103,6 +103,11 @@
 					enemyGroup,
 					(bullet, enemy) => {enemy.destroy(); bullet.destroy()}
 				);		
+				phaser.physics.world.on('worldbounds', (body) => {
+					if (playerGroupBullets.contains(body.gameObject)){
+						body.gameObject.destroy();
+					}
+				});
 			}
 			
 			function addInputs(phaser) {
@@ -132,18 +137,12 @@
 				phaser.children.bringToTop(player);
 				playerGroupBullets.add(bala);
 				atualizarVelocidade(bala, velBala, angle);
+				console.log(bala.physics);
 
 				bala.setCollideWorldBounds(true);
 				bala.body.onWorldBounds = true;
-				bala.body.world.on('worldbounds', deleteBullet, bala);
 			}
 
-			function deleteBullet(body) {
-				if (body.gameObject === this) {
-					this.setActive(false);
-					this.setVisible(false);
-				}
-			}
 
 			function atualizarVelocidade(entidade, vel, angle){
 				entidade.setVelocityY(vel * Math.sin(angle));
