@@ -73,8 +73,9 @@
 				}
 
 				if (spaceIsPressed) {
-					shoot(this);
+					shoot(this, player, playerGroupBullets);
 				}
+				moveEnemy(this);
 			}
 
 			function startGame(phaser) {
@@ -104,7 +105,7 @@
 					(bullet, enemy) => {enemy.destroy(); bullet.destroy()}
 				);		
 				phaser.physics.world.on('worldbounds', (body) => {
-					if (playerGroupBullets.contains(body.gameObject)){
+					if (playerGroupBullets.contains(body.gameObject) || enemyGroupBullets.contains(body.gameObject)){
 						body.gameObject.destroy();
 					}
 				});
@@ -127,17 +128,16 @@
 				return { enemyPosX, enemyPosY }
 			}
 
-			function shoot(phaser) {
-				const angle = player.rotation - Math.PI/2;
+			function shoot(phaser,entidade, bulletGroup) {
+				const angle = entidade.rotation - Math.PI/2;
 				const velBala = 1000;
-				const bala = 	playerGroupBullets.create(player.x, player.y, "bala");
+				const bala = 	bulletGroup.create(entidade.x, entidade.y, "bala");
 				bala.setScale(.04)
-				bala.angle = player.angle;
+				bala.angle = entidade.angle;
 				
-				phaser.children.bringToTop(player);
-				playerGroupBullets.add(bala);
+				phaser.children.bringToTop(entidade);
+				bulletGroup.add(bala);
 				atualizarVelocidade(bala, velBala, angle);
-				console.log(bala.physics);
 
 				bala.setCollideWorldBounds(true);
 				bala.body.onWorldBounds = true;
@@ -147,6 +147,20 @@
 			function atualizarVelocidade(entidade, vel, angle){
 				entidade.setVelocityY(vel * Math.sin(angle));
 				entidade.setVelocityX(vel * Math.cos(angle));
+			}
+			function modulo(x,y){
+				return (x**2 +y**2)**0.5
+			}
+			function moveEnemy(phaser){
+				enemyGroup.getChildren().forEach(function(enemy) {
+
+					const angle =  Phaser.Math.Angle.Between(enemy.x,enemy.y, player.x, player.y);
+					enemy.setRotation(angle);
+					enemy.angle+=90;
+					shoot(phaser,enemy, enemyGroupBullets);
+		
+
+				});
 			}
 		</script>
 
