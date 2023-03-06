@@ -39,7 +39,7 @@
 			function preload() {
 				this.load.image('ship', 'ship_1.png');
 				this.load.image('space', 'space.png');
-				this.load.image('bala', 'bullet.png');
+				this.load.image('bala', 'shot.png');
 				this.load.image('asteroid', 'asteroid.png');
 			}
 
@@ -152,7 +152,6 @@
 				const angle = entidade.rotation - Math.PI/2;
 				const velBala = 1000;
 				const bala = 	bulletGroup.create(entidade.x, entidade.y, "bala");
-				bala.setScale(.04)
 				bala.angle = entidade.angle;
 
 				phaser.children.bringToTop(entidade);
@@ -175,6 +174,7 @@
 					enemy.setRotation(angle);
 					enemy.angle += 90;
 					shoot(phaser, enemy, enemyGroupBullets);
+					atualizarVelocidade(enemy, 100, enemy.rotation-Math.PI/2 );
 				});
 			}
 
