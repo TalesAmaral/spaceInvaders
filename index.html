@@ -8,7 +8,7 @@
 		<script>
 			const w = 800;
 			const h = 600;
-			const mapWidth = 1024;
+			const mapWidth = 2048;
 			const mapHeight = 2048;
 			let config = {
 				width: w,
@@ -18,7 +18,7 @@
 					default: 'arcade',
 				},
 				scene: {
-					preload:preload,
+					preload: preload,
 					create: create,
 					update: update,
 				}
@@ -26,9 +26,13 @@
 
 			const game = new Phaser.Game(config);
 			const velocidadeJogador = 150;
+			const maximumEnemyQuantity = 10;
+			const velocidadeAsteroid = 100;
+			const maximumAsteroidQuantity = 20;
 			let enemyGroup;
 			let enemyGroupBullets;
 			let playerGroupBullets;
+			let asteroidGroup;
 			
 			let player;
 			let cursors;
@@ -37,6 +41,7 @@
 				this.load.image('ship', 'fmship.png');				
 				this.load.image('space', 'space.png');
 				this.load.image('bala', 'bullet.png');
+				this.load.image('asteroid', 'asteroid.png');
 			}
 
 			function create() {
@@ -75,14 +80,28 @@
 				if (spaceIsPressed) {
 					shoot(this, player, playerGroupBullets);
 				}
+
 				moveEnemy(this);
+				moveAsteroid(this);
 			}
 
 			function startGame(phaser) {
 				setInterval(() => {
-					const { enemyPosX, enemyPosY } = generateRandomEnemyPos();
-					enemyGroup.create(enemyPosX, enemyPosY, "ship");
+					if(enemyGroup.children.entries.length < maximumEnemyQuantity) {
+						const { randomPosX, randomPosY } = generateRandomPosOutsideScreen();
+						const enemy = enemyGroup.create(randomPosX, randomPosY, "ship");
+						enemy.setCollideWorldBounds(true);
+					}
 				}, 1000);
+
+				setInterval(() => {
+				 	if(enemyGroup.children.entries.length < maximumAsteroidQuantity) {
+						 const { randomPosX, randomPosY } = generateRandomPosOutsideScreen();
+						 const asteroid = asteroidGroup.create(randomPosX, randomPosY, "asteroid");
+						 asteroid.setScale(.15)
+						 asteroid.angle = Math.floor(Math.random() * (181))
+					}
+				}, 1000)
 			}
 
 			function addSprites(phaser) {
@@ -94,6 +113,7 @@
 				enemyGroup = phaser.physics.add.group();
 				enemyGroupBullets = phaser.physics.add.group();
 				playerGroupBullets = phaser.physics.add.group();
+				asteroidGroup = phaser.physics.add.group();
 			}
 
 			function addPhysics(phaser) {
@@ -103,9 +123,10 @@
 					playerGroupBullets,
 					enemyGroup,
 					(bullet, enemy) => {enemy.destroy(); bullet.destroy()}
-				);		
+				);
+
 				phaser.physics.world.on('worldbounds', (body) => {
-					if (playerGroupBullets.contains(body.gameObject) || enemyGroupBullets.contains(body.gameObject)){
+					if (playerGroupBullets.contains(body.gameObject) || enemyGroupBullets.contains(body.gameObject)) {
 						body.gameObject.destroy();
 					}
 				});
@@ -122,13 +143,13 @@
 				phaser.cameras.main.startFollow(player, true);
 			}
 
-			function generateRandomEnemyPos() {
-				const enemyPosX = Math.floor(Math.random() * mapWidth)
-				const enemyPosY = Math.abs(enemyPosX - player.x) < w/2 ? (Math.random() * (mapHeight-h) + player.y + h/2) % mapHeight : Math.random() * (mapHeight)
-				return { enemyPosX, enemyPosY }
+			function generateRandomPosOutsideScreen() {
+				const randomPosX = Math.floor(Math.random() * mapWidth)
+				const randomPosY = Math.abs(randomPosX - player.x) < w/2 ? (Math.random() * (mapHeight-h) + player.y + h/2) % mapHeight : Math.random() * (mapHeight)
+				return { randomPosX, randomPosY }
 			}
 
-			function shoot(phaser,entidade, bulletGroup) {
+			function shoot(phaser, entidade, bulletGroup) {
 				const angle = entidade.rotation - Math.PI/2;
 				const velBala = 1000;
 				const bala = 	bulletGroup.create(entidade.x, entidade.y, "bala");
@@ -144,23 +165,24 @@
 			}
 
 
-			function atualizarVelocidade(entidade, vel, angle){
+			function atualizarVelocidade(entidade, vel, angle) {
 				entidade.setVelocityY(vel * Math.sin(angle));
 				entidade.setVelocityX(vel * Math.cos(angle));
 			}
-			function modulo(x,y){
-				return (x**2 +y**2)**0.5
-			}
-			function moveEnemy(phaser){
-				enemyGroup.getChildren().forEach(function(enemy) {
 
-					const angle =  Phaser.Math.Angle.Between(enemy.x,enemy.y, player.x, player.y);
+			function moveEnemy(phaser) {
+				enemyGroup.getChildren().forEach(enemy => {
+					const angle = Phaser.Math.Angle.Between(enemy.x,enemy.y, player.x, player.y);
 					enemy.setRotation(angle);
-					enemy.angle+=90;
-					shoot(phaser,enemy, enemyGroupBullets);
-		
-
+					enemy.angle += 90;
+					shoot(phaser, enemy, enemyGroupBullets);
 				});
+			}
+
+			function moveAsteroid(phaser) {
+				asteroidGroup.getChildren().forEach(asteroid => {
+					atualizarVelocidade(asteroid, velocidadeAsteroid, asteroid.angle)
+				})
 			}
 		</script>
 
