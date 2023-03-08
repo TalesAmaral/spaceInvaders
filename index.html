@@ -58,10 +58,14 @@
 			});
 			this.load.image('asteroid', 'astr.png');
 			this.load.image('enemy', 'ship_3.png');
-			this.load.image('enemy2', 'ship_4.png')
+			this.load.image('enemy2', 'ship_4.png');
+			this.load.audio('musica', [ 'BackOnTrack.mp3', 'BackOnTrack.ogg']);
 		}
 
 		function create() {
+			music = this.sound.add('musica');
+
+			music.play();
 			addSprites(this)
 			addTexts(this)
 			createGroups(this)
