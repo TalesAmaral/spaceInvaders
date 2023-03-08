@@ -27,9 +27,9 @@
 		};
 
 		const game = new Phaser.Game(config);
-		const playerVelocity = 150;
+		const playerVelocity = 300;
 
-		const enemyVelocity = 100;
+		const enemyVelocity = 200;
 		const maximumEnemyQuantity = 10;
 		const enemySpawnRateInMilliseconds = 1000;
 
@@ -38,7 +38,6 @@
 		const asteroidSpawnRateInMilliseconds = 1000;
 
 		let player;
-		let lives = 3;
 
 		let enemyGroup;
 		let enemyGroupBullets;
@@ -63,15 +62,8 @@
 		}
 
 		function create() {
-
-			this.anims.create({
-				key: 'bullet',
-				frames: this.anims.generateFrameNumbers('bullet'),
-				frameRate: 12,
-				repeat: -1
-			});
-
 			addSprites(this)
+			addTexts(this)
 			createGroups(this)
 			addInputs(this)
 			addPhysics(this)
@@ -80,7 +72,11 @@
 		}
 
 		function update() {
-			updateVelocity(player, 0, 0)
+			updateVelocity(player, 0, 0);
+			playerHpText.text = player.getData('health');
+			playerHpText.x = player.body.position.x;
+			playerHpText.y = player.body.position.y;
+			this.children.bringToTop(playerHpText);
 
 			const leftIsPressed = cursors.left.isDown
 			const rightIsPressed = cursors.right.isDown
@@ -123,22 +119,46 @@
 					const { randomPosX, randomPosY } = generateRandomPosOutsideScreen();
 					const enemy = enemyGroup.create(randomPosX, randomPosY, 'enemy');
 					enemy.setCollideWorldBounds(true);
+					phaser.physics.add.collider(enemy, enemyGroup)
 				}
 			}, enemySpawnRateInMilliseconds);
 
 			setInterval(() => {
-				if (enemyGroup.children.entries.length < maximumAsteroidQuantity) {
-					const { randomPosX, randomPosY } = generateRandomPosOutsideScreen();
+				const { randomPosX, randomPosY } = generateRandomPosOutsideScreen();
+				if (asteroidGroup.children.entries.length < maximumAsteroidQuantity) {
 					const asteroid = asteroidGroup.create(randomPosX, randomPosY, "asteroid");
 					asteroid.setScale(Math.random() / 4);
 					asteroid.angle = Math.floor(Math.random() * (181))
+					asteroid.setCollideWorldBounds(true);
+					asteroid.body.onWorldBounds = true;
+				} else {
+					const asteroid = asteroidGroup.getFirstDead();
+					if (asteroid) {
+						asteroid.x = randomPosX;
+						asteroid.y = randomPosY;
+						asteroid.setActive(true)
+						asteroid.setVisible(true)
+						asteroid.setScale(Math.random() / 4);
+						asteroid.angle = Math.floor(Math.random() * (181))
+					}
 				}
 			}, asteroidSpawnRateInMilliseconds)
 		}
 
 		function addSprites(phaser) {
+			phaser.anims.create({
+				key: 'bullet',
+				frames: phaser.anims.generateFrameNumbers('bullet'),
+				frameRate: 12,
+				repeat: -1
+			});
 			phaser.add.tileSprite(0, 0, mapWidth, mapHeight, 'space').setOrigin(0);
 			player = phaser.physics.add.image(mapWidth / 2, mapHeight / 2, 'ship');
+			player.setData('health', 100);
+		}
+
+		function addTexts(phaser) {
+			playerHpText = phaser.add.text(player.body.x, player.body.y, player.getData('health'));
 		}
 
 		function createGroups(phaser) {
@@ -155,12 +175,27 @@
 			phaser.physics.add.collider(
 				playerGroupBullets,
 				enemyGroup,
-				(bullet, enemy) => { enemy.destroy(); bullet.destroy() }
+				killEnemy
+			);
+
+			phaser.physics.add.collider(
+				player,
+				asteroidGroup,
+				decreaseHealth
+			);
+
+			phaser.physics.add.collider(
+				player,
+				enemyGroupBullets,
+		    decreaseHealth
 			);
 
 			phaser.physics.world.on('worldbounds', (body) => {
 				if (playerGroupBullets.contains(body.gameObject) || enemyGroupBullets.contains(body.gameObject)) {
 					body.gameObject.destroy();
+				} else if (asteroidGroup.contains(body.gameObject)) {
+					body.gameObject.setActive(false)
+					body.gameObject.setVisible(false)
 				}
 			});
 		}
@@ -189,13 +224,23 @@
 			bullet.setScale(2);
 
 			phaser.children.bringToTop(entity);
-			bulletGroup.add(bullet);
 			updateVelocity(bullet, bulletVelocity, angle);
 
 			bullet.setCollideWorldBounds(true);
 			bullet.body.onWorldBounds = true;
 		}
 
+		function killEnemy(bullet, enemy) {
+			bullet.destroy();
+			enemy.destroy();
+			player.incData('health');
+		}
+
+		function decreaseHealth(player, entity) {
+			entity.destroy()
+
+			player.incData('health', -1)
+		}
 
 		function updateVelocity(entity, velocity, angle) {
 			entity.setVelocityY(velocity * Math.sin(angle));
@@ -212,7 +257,7 @@
 				enemy.setRotation(angle);
 				enemy.angle += 90;
 
-				if(enemyFireRate > 0) {
+				if(enemyFireRate > 0 && phaser.cameras.main.cull([enemy]).length > 0) {
 					shoot(phaser, enemy, enemyGroupBullets);
 				}
 				
