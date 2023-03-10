@@ -1,32 +1,10 @@
-<!DOCTYPE html>
 <html>
+  <head>
+    <title></title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.50.1/dist/phaser.js"></script>
+  </head>
 
-<head>
-	<script src=" https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js "></script>
-</head>
-
-<body>
-
-	<script>
-		import start from 'start.js';
-		import game from 'game.js';
-		import end from 'end.js';
-		const w = 800;
-		const h = 600;
-		const mapWidth = 2048;
-		const mapHeight = 2048;
-		let config = {
-			width: w,
-			height: h,
-			type: Phaser.AUTO,
-			physics: {
-				default: 'arcade',
-			},
-			scene: [start, game,end]
-		};
-
-		const game = new Phaser.Game(config);
-	</script>
-
-</body>
-
+  <body>
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
