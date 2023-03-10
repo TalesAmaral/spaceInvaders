@@ -35,8 +35,7 @@ export default class Game extends Phaser.Scene {
 
 		preload() {
 			this.load.image('ship', './src/assets/img/ship_1.png');
-			this.load.image('space', './src/assets/img/SpaceBackground.jpg');
-			this.load.spritesheet('bullet', './src/assets/img/shot.png', {
+      this.load.spritesheet('bullet', './src/assets/img/shot.png', {
 				frameWidth: 48,
 				frameHeigth: 48
 			});
@@ -98,6 +97,11 @@ export default class Game extends Phaser.Scene {
 		
 			this.moveEnemy();
 			this.moveAsteroid();
+
+      if (this.player.getData("health") <= 0) {
+        this.scene.pause();
+        this.scene.launch('end');
+      }
 		}
 
     startGame() {
