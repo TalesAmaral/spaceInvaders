@@ -13,11 +13,14 @@ export default class Game extends Phaser.Scene {
       this.enemyVelocity = 200;
       this.maximumEnemyQuantity = 10;
       this.enemySpawnRateInMilliseconds = 1000;
+      this.enemySpawnRateInterval;
       
       this.asteroidVelocity = 100;
       this.maximumAsteroidQuantity = 20;
       this.asteroidSpawnRateInMilliseconds = 1000;
+      this.asteroidSpawnRateInterval;
       
+      this.playerInitialHealth = Infinity;
       this.player;
       this.playerHpText;
       
@@ -27,12 +30,11 @@ export default class Game extends Phaser.Scene {
       this.asteroidGroup;
       
       this.cursors;
-      
+
       this.canFire = 1;
       this.enemyFireRate = 0;
     }
 	
-
 		preload() {
 			this.load.image('ship', './src/assets/img/ship_1.png');
       this.load.spritesheet('bullet', './src/assets/img/shot.png', {
@@ -42,26 +44,23 @@ export default class Game extends Phaser.Scene {
 			this.load.image('asteroid', './src/assets/img/astr.png');
 			this.load.image('enemy', './src/assets/img/ship_3.png');
 			this.load.image('enemy2', './src/assets/img/ship_4.png');
-			this.load.audio('musica', [ './src/assets/audio/BackOnTrack.mp3', './src/assets/audio/BackOnTrack.ogg']);
+			this.load.audio('music', [ './src/assets/audio/BackOnTrack.mp3', './src/assets/audio/BackOnTrack.ogg']);
 		}
 		
 		create() {
-			const music = this.sound.add('musica');
-			music.loop = true;
-		
-			music.play();
-			this.addSprites()
-			this.addTexts()
-			this.createGroups()
-			this.addInputs()
-			this.addPhysics()
-			this.setCamera()
-			this.startGame()
+			this.addSounds();
+			this.addSprites();
+			this.addTexts();
+			this.createGroups();
+			this.addInputs();
+			this.addPhysics();
+			this.setCamera();
+      this.startGame();
 		}
-		
+
 		update() {
 			this.updateVelocity(this.player, 0, 0);
-			this.playerHpText.text = this.player.getData('health');
+			this.playerHpText.text = Math.max(this.player.getData('health'), 0);
 			this.playerHpText.x = this.player.body.position.x;
 			this.playerHpText.y = this.player.body.position.y;
 			this.children.bringToTop(this.playerHpText);
@@ -75,10 +74,10 @@ export default class Game extends Phaser.Scene {
 		
 			if (leftIsPressed) {
 				this.player.angle -= 5
-			}
-			else if (rightIsPressed) {
+			} else if (rightIsPressed) {
 				this.player.angle += 5
 			}
+      
 			const angle = this.player.rotation - Math.PI / 2;
 		
 			if (upIsPressed) {
@@ -91,22 +90,28 @@ export default class Game extends Phaser.Scene {
 				this.shoot(this.player, this.playerGroupBullets);
 				this.canFire = 0;
 			}
-			if(spaceIsUp && this.canFire == 0) {
+			if (spaceIsUp && this.canFire == 0) {
 				this.canFire = 1;
 			}
 		
 			this.moveEnemy();
 			this.moveAsteroid();
 
-      if (this.player.getData("health") <= 0) {
-        this.scene.pause();
-        this.scene.launch('end');
-      }
+      const playerHasDied = this.player.getData('health') <= 0;
+      if (playerHasDied) this.onDeath();
 		}
 
+    onDeath() {
+      this.scene.pause();
+      clearInterval(this.enemySpawnRateInterval);
+      clearInterval(this.asteroidSpawnRateInterval);
+      this.scene.launch('end');
+    }
+
     startGame() {
-      setInterval(() => {
-        if (this.enemyGroup.children.entries.length < this.maximumEnemyQuantity) {
+      this.enemySpawnRateInterval = setInterval(() => {
+        const hasntSpawnedAllEnemies = this.enemyGroup.children.entries.length < this.maximumEnemyQuantity
+        if (hasntSpawnedAllEnemies) {
           const { randomPosX, randomPosY } = this.generateRandomPosOutsideScreen();
           const enemy = this.enemyGroup.create(randomPosX, randomPosY, 'enemy');
           enemy.setCollideWorldBounds(true);
@@ -114,10 +119,11 @@ export default class Game extends Phaser.Scene {
         }
       }, this.enemySpawnRateInMilliseconds);
     
-      setInterval(() => {
+      this.asteroidSpawnRateInterval = setInterval(() => {
         const { randomPosX, randomPosY } = this.generateRandomPosOutsideScreen();
-        if (this.asteroidGroup.children.entries.length < this.maximumAsteroidQuantity) {
-          const asteroid = this.asteroidGroup.create(randomPosX, randomPosY, "asteroid");
+        const hasntSpawnedAllAsteroids = this.asteroidGroup.children.entries.length < this.maximumAsteroidQuantity
+        if (hasntSpawnedAllAsteroids) {
+          const asteroid = this.asteroidGroup.create(randomPosX, randomPosY, 'asteroid');
           asteroid.setScale(Math.random() / 4);
           asteroid.angle = Math.floor(Math.random() * (181))
           asteroid.setCollideWorldBounds(true);
@@ -135,6 +141,13 @@ export default class Game extends Phaser.Scene {
         }
       }, this.asteroidSpawnRateInMilliseconds)
     }
+
+    addSounds() {
+      const music = this.sound.add('music');
+			music.loop = true;
+      
+			music.play();
+    }
     
     addSprites() {
       this.anims.create({
@@ -144,8 +157,9 @@ export default class Game extends Phaser.Scene {
         repeat: -1
       });
       this.add.tileSprite(0, 0, this.mapWidth, this.mapHeight, 'space').setOrigin(0);
+      
       this.player = this.physics.add.image(this.mapWidth / 2, this.mapHeight / 2, 'ship');
-      this.player.setData('health', 100);
+      this.player.setData('health', this.playerInitialHealth);
     }
     
     addTexts() {
@@ -166,7 +180,10 @@ export default class Game extends Phaser.Scene {
       this.physics.add.collider( 
         this.playerGroupBullets,
         this.enemyGroup,
-        this.killEnemy,
+        (playerBullet, enemy) => {
+          this.destroyEntities(playerBullet, enemy);
+          this.increaseHealth(this.player, 1);
+        },
         null,
         this,
       );
@@ -174,7 +191,10 @@ export default class Game extends Phaser.Scene {
       this.physics.add.collider( 
         this.player,
         this.enemyGroup,
-        (player, enemy) => this.decreaseHealth(player, enemy, 10),
+        (player, enemy) => {
+          this.destroyEntities(enemy);
+          this.decreaseHealth(player, 10);
+        },
         null,
         this,
       );
@@ -182,7 +202,10 @@ export default class Game extends Phaser.Scene {
       this.physics.add.collider(
         this.player,
         this.asteroidGroup,
-        (player, enemy) => this.decreaseHealth(player, enemy, 5),
+        (player, enemy) => {
+          this.destroyEntities(enemy);
+          this.decreaseHealth(player, 5);
+        },
         null,
         this,
       );
@@ -190,22 +213,41 @@ export default class Game extends Phaser.Scene {
       this.physics.add.collider(
         this.player,
         this.enemyGroupBullets,
-        this.decreaseHealth,
+        (player, enemyBullet) => {
+          this.destroyEntities(enemyBullet);
+          this.decreaseHealth(player);
+        },
+        null,
+        this,
+      );
+
+      this.physics.add.collider(
+        this.playerGroupBullets,
+        this.asteroidGroup,
+        (playerBullet, asteroid) => {
+          // TODO: trocar isso pra ser um damageAsteroid (asteroid vai ter vida)
+          this.destroyEntities(playerBullet, asteroid)
+        },
         null,
         this,
       );
 
     
       this.physics.world.on('worldbounds', body => {
-        if (this.playerGroupBullets.contains(body.gameObject) || this.enemyGroupBullets.contains(body.gameObject)) {
-          body.gameObject.destroy();
-        } else if (this.asteroidGroup.contains(body.gameObject)) {
-          body.gameObject.setActive(false)
-          body.gameObject.setVisible(false)
+        const entity = body.gameObject;
+        const isPlayerBullet = this.playerGroupBullets.contains(entity);
+        const isEnemyBullet = this.enemyGroupBullets.contains(entity)
+        const isAsteroid = this.asteroidGroup.contains(entity)
+        
+        if (isPlayerBullet || isEnemyBullet) {
+          entity.destroy();
+        } else if (isAsteroid) {
+          entity.setActive(false);
+          entity.setVisible(false);
         }
       });
     }
-    
+
     addInputs() {
       this.cursors = this.input.keyboard.createCursorKeys();
     }
@@ -217,8 +259,10 @@ export default class Game extends Phaser.Scene {
     }
     
     generateRandomPosOutsideScreen() {
-      const randomPosX = Math.floor(Math.random() * this.mapWidth)
-      const randomPosY = Math.abs(randomPosX - this.player.x) < this.cameraWidth / 2 ? (Math.random() * (this.mapHeight - this.cameraHeight) + this.player.y + this.cameraHeight / 2) % this.mapHeight : Math.random() * (this.mapHeight)
+      const randomPosX = Math.floor(Math.random() * this.mapWidth);
+      const randomPosY = Math.abs(randomPosX - this.player.x) < this.cameraWidth / 2
+        ? (Math.random() * (this.mapHeight - this.cameraHeight) + this.player.y + this.cameraHeight / 2) % this.mapHeight
+        : Math.random() * (this.mapHeight)
       return { randomPosX, randomPosY }
     }
     
@@ -236,16 +280,16 @@ export default class Game extends Phaser.Scene {
       bullet.body.onWorldBounds = true;
     }
     
-    killEnemy(bullet, enemy) {
-      enemy.destroy();
-      bullet.destroy();
+    destroyEntities(entityA, entityB) {
+      entityA?.destroy();
+      entityB?.destroy();
+    }
 
-      this.player.incData('health');
+    increaseHealth(player, health = 1) {
+      player.incData('health', health)
     }
     
-    decreaseHealth(player, entity, damage = 1) {
-      entity.destroy()
-    
+    decreaseHealth(player, damage = 1) {
       player.incData('health', -damage)
     }
     
@@ -257,14 +301,16 @@ export default class Game extends Phaser.Scene {
     moveEnemy() {
       this.enemyFireRate++;
     
-      if(this.enemyFireRate > 1) this.enemyFireRate = -100;
+      if (this.enemyFireRate > 1) this.enemyFireRate = -100;
     
       this.enemyGroup.getChildren().forEach(enemy => {
         const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
         enemy.setRotation(angle);
         enemy.angle += 90;
     
-        if(this.enemyFireRate > 0 && this.cameras.main.cull([enemy]).length > 0) {
+        const enemyWillShoot = this.enemyFireRate > 0;
+        const enemyIsOnScreen = this.cameras.main.cull([enemy]).length > 0;
+        if(enemyWillShoot && enemyIsOnScreen) {
           this.shoot(enemy, this.enemyGroupBullets);
         }
         
