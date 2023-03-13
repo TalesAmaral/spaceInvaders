@@ -18,7 +18,7 @@ export default class Start extends Phaser.Scene {
     });
 
     // o menu ainda roda a logica do game, causando erros no log, tem q corrigir
-    /*
+
       const text2 = this.add.text(325, 310, 'MENU', textStyle).setInteractive();
       text2.on('pointerdown', () => {
         this.scene.stop();
@@ -26,6 +26,6 @@ export default class Start extends Phaser.Scene {
         this.scene.start('start');
         this.game.sound.stopAll();
       })
-      */
+
   }
 }

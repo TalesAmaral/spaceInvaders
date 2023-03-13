@@ -1,3 +1,63 @@
+class HealthBar {
+
+  constructor (scene, x, y, value)
+  {
+      this.bar = new Phaser.GameObjects.Graphics(scene);
+
+      this.x = x;
+      this.y = y;
+      this.value = value;
+      this.p = 76 / value;
+
+      this.draw();
+
+      scene.add.existing(this.bar);
+  }
+
+  decrease (amount)
+  {
+      this.value -= amount;
+
+      if (this.value < 0)
+      {
+          this.value = 0;
+      }
+
+      this.draw();
+
+      return (this.value === 0);
+  }
+
+  draw ()
+  {
+      this.bar.clear();
+
+      //  BG
+      this.bar.fillStyle(0x000000);
+      this.bar.fillRect(this.x, this.y, 80, 16);
+
+      //  Health
+
+      this.bar.fillStyle(0xffffff);
+      this.bar.fillRect(this.x + 2, this.y + 2, 76, 12);
+
+      if (this.value < 30)
+      {
+          this.bar.fillStyle(0xff0000);
+      }
+      else
+      {
+          this.bar.fillStyle(0x00ff00);
+      }
+
+      var d = Math.floor(this.p * this.value);
+
+      this.bar.fillRect(this.x + 2, this.y + 2, d, 12);
+  }
+
+}
+
+
 export default class Game extends Phaser.Scene {
   constructor() {
     super('game');
@@ -9,6 +69,7 @@ export default class Game extends Phaser.Scene {
     this.mapWidth = 2048;
     this.mapHeight = 2048;
     this.playerVelocity = 300;
+    this.playerScore =0;
 
     this.enemyVelocity = 200;
     this.maximumEnemyQuantity = 10;
@@ -20,9 +81,10 @@ export default class Game extends Phaser.Scene {
     this.asteroidSpawnRateInMilliseconds = 1000;
     this.asteroidSpawnRateInterval;
 
-    this.playerInitialHealth = Infinity;
+    this.playerInitialHealth = 100;
     this.player;
     this.playerHpText;
+    this.playerScoreText;
 
     this.enemyGroup;
     this.enemyGroupBullets;
@@ -30,6 +92,7 @@ export default class Game extends Phaser.Scene {
     this.asteroidGroup;
 
     this.cursors;
+    this.healtBar;
 
     this.canFire = 1;
     this.enemyFireRate = 0;
@@ -48,6 +111,8 @@ export default class Game extends Phaser.Scene {
   }
 
   create() {
+
+   
     this.addSounds();
     this.addSprites();
     this.addTexts();
@@ -56,14 +121,24 @@ export default class Game extends Phaser.Scene {
     this.addPhysics();
     this.setCamera();
     this.startGame();
+    this.healthBar = new HealthBar(this,this.player.body.position.x+50 -this.cameraWidth/2 ,this.player.body.position.y+50-this.cameraHeight/2, this.playerInitialHealth);
   }
 
   update() {
     this.updateVelocity(this.player, 0, 0);
-    this.playerHpText.text = Math.max(this.player.getData('health'), 0);
-    this.playerHpText.x = this.player.body.position.x;
-    this.playerHpText.y = this.player.body.position.y;
-    this.children.bringToTop(this.playerHpText);
+    const cantoX = Math.max(this.player.body.position.x -this.cameraWidth/2,0);
+    const cantoY = Math.max(this.player.body.position.y-this.cameraHeight/2,0);
+    this.healthBar.value = Math.max(this.player.getData('health'), 0);
+    this.healthBar.x = cantoX+50;
+    this.healthBar.y = cantoY+50;
+    this.playerScoreText.x = cantoX+50;
+    this.playerScoreText.y = cantoY+70;
+    this.healthBar.draw();
+    this.playerScoreText.text = "Score:"+this.playerScore;
+    
+    
+    this.children.bringToTop(this.playerScoreText);
+    this.children.bringToTop(this.healthBar);
 
     const leftIsPressed = this.cursors.left.isDown;
     const rightIsPressed = this.cursors.right.isDown;
@@ -143,7 +218,7 @@ export default class Game extends Phaser.Scene {
   }
 
   addSounds() {
-    const music = this.sound.add('music');
+    const music = this.sound.add('music',  {volume: 0.2});
     music.loop = true;
 
     music.play();
@@ -163,7 +238,7 @@ export default class Game extends Phaser.Scene {
   }
 
   addTexts() {
-    this.playerHpText = this.add.text(this.player.body.x, this.player.body.y, this.player.getData('health'));
+    this.playerScoreText = this.add.text(this.player.body.x -this.cameraWidth/2, this.player.body.y-this.cameraHeight/2, this.playerScore);
   }
 
   createGroups() {
@@ -255,6 +330,7 @@ export default class Game extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, this.mapWidth, this.mapHeight);
     this.physics.world.setBounds(0, 0, this.mapWidth, this.mapHeight);
     this.cameras.main.startFollow(this.player, true);
+
   }
 
   generateRandomPosOutsideScreen() {
