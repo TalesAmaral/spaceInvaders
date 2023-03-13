@@ -1,62 +1,39 @@
 class HealthBar {
+  constructor(scene, x, y, value) {
+    this.bar = new Phaser.GameObjects.Graphics(scene);
 
-  constructor (scene, x, y, value)
-  {
-      this.bar = new Phaser.GameObjects.Graphics(scene);
+    this.x = x;
+    this.y = y;
+    this.value = value;
+    this.p = 76 / value;
 
-      this.x = x;
-      this.y = y;
-      this.value = value;
-      this.p = 76 / value;
+    this.draw();
 
-      this.draw();
-
-      scene.add.existing(this.bar);
+    scene.add.existing(this.bar);
   }
 
-  decrease (amount)
-  {
-      this.value -= amount;
+  draw() {
+    this.bar.clear();
 
-      if (this.value < 0)
-      {
-          this.value = 0;
-      }
+    //  BG
+    this.bar.fillStyle(0x000000);
+    this.bar.fillRect(this.x, this.y, 80, 16);
 
-      this.draw();
+    //  Health
+    this.bar.fillStyle(0xffffff);
+    this.bar.fillRect(this.x + 2, this.y + 2, 76, 12);
 
-      return (this.value === 0);
+    if (this.value < 30) {
+      this.bar.fillStyle(0xff0000);
+    } else {
+      this.bar.fillStyle(0x00ff00);
+    }
+
+    const d = Math.floor(this.p * this.value);
+
+    this.bar.fillRect(this.x + 2, this.y + 2, d, 12);
   }
-
-  draw ()
-  {
-      this.bar.clear();
-
-      //  BG
-      this.bar.fillStyle(0x000000);
-      this.bar.fillRect(this.x, this.y, 80, 16);
-
-      //  Health
-
-      this.bar.fillStyle(0xffffff);
-      this.bar.fillRect(this.x + 2, this.y + 2, 76, 12);
-
-      if (this.value < 30)
-      {
-          this.bar.fillStyle(0xff0000);
-      }
-      else
-      {
-          this.bar.fillStyle(0x00ff00);
-      }
-
-      var d = Math.floor(this.p * this.value);
-
-      this.bar.fillRect(this.x + 2, this.y + 2, d, 12);
-  }
-
 }
-
 
 export default class Game extends Phaser.Scene {
   constructor() {
@@ -69,7 +46,7 @@ export default class Game extends Phaser.Scene {
     this.mapWidth = 2048;
     this.mapHeight = 2048;
     this.playerVelocity = 300;
-    this.playerScore =0;
+    this.playerScore = 0;
 
     this.enemyVelocity = 200;
     this.maximumEnemyQuantity = 10;
@@ -92,7 +69,7 @@ export default class Game extends Phaser.Scene {
     this.asteroidGroup;
 
     this.cursors;
-    this.healtBar;
+    this.healthBar;
 
     this.canFire = 1;
     this.enemyFireRate = 0;
@@ -111,8 +88,6 @@ export default class Game extends Phaser.Scene {
   }
 
   create() {
-
-   
     this.addSounds();
     this.addSprites();
     this.addTexts();
@@ -120,23 +95,15 @@ export default class Game extends Phaser.Scene {
     this.addInputs();
     this.addPhysics();
     this.setCamera();
+    this.setHealth();
     this.startGame();
-    this.healthBar = new HealthBar(this,this.player.body.position.x+50 -this.cameraWidth/2 ,this.player.body.position.y+50-this.cameraHeight/2, this.playerInitialHealth);
   }
 
   update() {
-    this.updateVelocity(this.player, 0, 0);
-    const cantoX = Math.max(this.player.body.position.x -this.cameraWidth/2,0);
-    const cantoY = Math.max(this.player.body.position.y-this.cameraHeight/2,0);
-    this.healthBar.value = Math.max(this.player.getData('health'), 0);
-    this.healthBar.x = cantoX+50;
-    this.healthBar.y = cantoY+50;
-    this.playerScoreText.x = cantoX+50;
-    this.playerScoreText.y = cantoY+70;
-    this.healthBar.draw();
-    this.playerScoreText.text = "Score:"+this.playerScore;
-    
-    
+    this.updateVelocity(this.player, 0);
+
+    this.updateHud();
+
     this.children.bringToTop(this.playerScoreText);
     this.children.bringToTop(this.healthBar);
 
@@ -153,12 +120,10 @@ export default class Game extends Phaser.Scene {
       this.player.angle += 5;
     }
 
-    const angle = this.player.rotation - Math.PI / 2;
-
     if (upIsPressed) {
-      this.updateVelocity(this.player, this.playerVelocity, angle);
+      this.updateVelocity(this.player, this.playerVelocity);
     } else if (downIsPressed) {
-      this.updateVelocity(this.player, -this.playerVelocity, angle);
+      this.updateVelocity(this.player, -this.playerVelocity);
     }
 
     if (spaceIsPressed && this.canFire == 1) {
@@ -173,7 +138,9 @@ export default class Game extends Phaser.Scene {
     this.moveAsteroid();
 
     const playerHasDied = this.player.getData('health') <= 0;
-    if (playerHasDied) this.onDeath();
+    if (playerHasDied) {
+      this.onDeath();
+    }
   }
 
   onDeath() {
@@ -181,6 +148,15 @@ export default class Game extends Phaser.Scene {
     clearInterval(this.enemySpawnRateInterval);
     clearInterval(this.asteroidSpawnRateInterval);
     this.scene.launch('end');
+  }
+
+  setHealth() {
+    this.healthBar = new HealthBar(
+      this,
+      this.player.body.position.x + 50 - this.cameraWidth / 2,
+      this.player.body.position.y + 50 - this.cameraHeight / 2,
+      this.playerInitialHealth
+    );
   }
 
   startGame() {
@@ -218,7 +194,7 @@ export default class Game extends Phaser.Scene {
   }
 
   addSounds() {
-    const music = this.sound.add('music',  {volume: 0.2});
+    const music = this.sound.add('music', { volume: 0.2 });
     music.loop = true;
 
     music.play();
@@ -238,7 +214,11 @@ export default class Game extends Phaser.Scene {
   }
 
   addTexts() {
-    this.playerScoreText = this.add.text(this.player.body.x -this.cameraWidth/2, this.player.body.y-this.cameraHeight/2, this.playerScore);
+    this.playerScoreText = this.add.text(
+      this.player.body.x - this.cameraWidth / 2,
+      this.player.body.y - this.cameraHeight / 2,
+      this.playerScore
+    );
   }
 
   createGroups() {
@@ -257,7 +237,8 @@ export default class Game extends Phaser.Scene {
       this.enemyGroup,
       (playerBullet, enemy) => {
         this.destroyEntities(playerBullet, enemy);
-        this.increaseHealth(this.player, 1);
+        this.increaseHealth(this.player);
+        this.addScore();
       },
       null,
       this
@@ -330,7 +311,6 @@ export default class Game extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, this.mapWidth, this.mapHeight);
     this.physics.world.setBounds(0, 0, this.mapWidth, this.mapHeight);
     this.cameras.main.startFollow(this.player, true);
-
   }
 
   generateRandomPosOutsideScreen() {
@@ -343,14 +323,13 @@ export default class Game extends Phaser.Scene {
   }
 
   shoot(entity, bulletGroup) {
-    const angle = entity.rotation - Math.PI / 2;
     const bulletVelocity = 800;
     const bullet = bulletGroup.create(entity.x, entity.y, 'bullet');
     bullet.angle = entity.angle;
     bullet.setScale(2);
 
     this.children.bringToTop(entity);
-    this.updateVelocity(bullet, bulletVelocity, angle);
+    this.updateVelocity(bullet, bulletVelocity);
 
     bullet.setCollideWorldBounds(true);
     bullet.body.onWorldBounds = true;
@@ -361,17 +340,40 @@ export default class Game extends Phaser.Scene {
     entityB?.destroy();
   }
 
+  addScore() {
+    this.playerScore += 1;
+  }
+
   increaseHealth(player, health = 1) {
+    if (player.getData('health') > this.playerInitialHealth * 0.3) {
+      player.tint = 0xffffff;
+    }
     player.incData('health', health);
   }
 
   decreaseHealth(player, damage = 1) {
     player.incData('health', -damage);
+
+    if (player.getData('health') < this.playerInitialHealth * 0.3) {
+      player.tint = 0xff0000;
+    }
   }
 
-  updateVelocity(entity, velocity, angle) {
-    entity.setVelocityY(velocity * Math.sin(angle));
-    entity.setVelocityX(velocity * Math.cos(angle));
+  updateVelocity(entity, velocity) {
+    this.sys.arcadePhysics.velocityFromAngle(entity.angle - 90, velocity, entity.body.velocity);
+  }
+
+  updateHud() {
+    const cantoX = this.cameras.main.scrollX;
+    const cantoY = this.cameras.main.scrollY;
+    this.healthBar.value = Math.max(this.player.getData('health'), 0);
+    this.healthBar.x = cantoX + 10;
+    this.healthBar.y = cantoY + 10;
+    this.healthBar.draw();
+
+    this.playerScoreText.x = cantoX + 10;
+    this.playerScoreText.y = cantoY + 30;
+    this.playerScoreText.text = `Score: ${Math.floor(this.playerScore)}`;
   }
 
   moveEnemy() {
@@ -390,13 +392,13 @@ export default class Game extends Phaser.Scene {
         this.shoot(enemy, this.enemyGroupBullets);
       }
 
-      this.updateVelocity(enemy, this.enemyVelocity, enemy.rotation - Math.PI / 2);
+      this.updateVelocity(enemy, this.enemyVelocity);
     });
   }
 
   moveAsteroid() {
     this.asteroidGroup.getChildren().forEach((asteroid) => {
-      this.updateVelocity(asteroid, this.asteroidVelocity, asteroid.angle);
+      this.updateVelocity(asteroid, this.asteroidVelocity);
     });
   }
 }
