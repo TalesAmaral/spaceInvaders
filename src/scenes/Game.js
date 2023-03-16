@@ -1,6 +1,97 @@
+class Entity extends Phaser.Physics.Arcade.Sprite {
+  constructor(scene, x, y, sprite, health) {
+    super(scene, x, y, sprite);
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+    this.health = health;
+  }
+
+  updateVelocity(velocity) {
+    this.scene.sys.arcadePhysics.velocityFromAngle(this.angle - 90, velocity, this.body.velocity);
+    this.x = Math.floor(this.x);
+    this.y = Math.floor(this.y);
+  }
+
+  decreaseHealth(player, damage = 1) {
+    player.health -= damage;
+
+    if (this.playerIsLow(player)) {
+      player.tint = 0xff0000;
+    }
+
+    this.updateHealthHud();
+  }
+
+  destroySelf() {
+    this.sprite.destroy();
+  }
+}
+
+class EntityShooter extends Entity {
+  constructor(scene, x, y, sprite, health, bulletGroup) {
+    super(scene, x, y, sprite, health);
+    this.bulletGroup = bulletGroup;
+  }
+
+  shoot() {
+    const bulletVelocity = 800;
+    const bullet = new Entity(this.scene, this.x, this.y, 'bullet');
+    this.bulletGroup.add(bullet);
+    bullet.angle = this.angle;
+    bullet.setScale(2);
+
+    this.scene.children.bringToTop(bullet);
+    bullet.updateVelocity(bulletVelocity);
+
+    bullet.setCollideWorldBounds(true);
+    bullet.body.onWorldBounds = true;
+
+    const fire = this.scene.sound.add('fireSound', { volume: 0.2 });
+    fire.loop = false;
+    fire.play();
+  }
+}
+
+class Player extends EntityShooter {
+  constructor(scene, x, y, sprite, health, bulletGroup) {
+    super(scene, x, y, sprite, health, bulletGroup);
+    this.playerInitialHealth = 10;
+    this.playerVelocity = 300;
+    this.playerScore = 0;
+    this.canFire = 1;
+  }
+
+  playerIsLow() {
+    return this.health < this.playerInitialHealth * 0.3;
+  }
+
+  increaseHealth(health = 1) {
+    if (!this.playerIsLow()) {
+      this.tint = 0xffffff;
+    }
+    if (this.health < this.playerInitialHealth) {
+      this.health += health;
+    }
+
+    this.updateHealthHud();
+  }
+
+  decreaseHealth(player, damage = 1) {
+    super.decreaseHealth(player, damage);
+
+    this.updateHealthHud();
+  }
+}
+
 export default class Game extends Phaser.Scene {
   constructor() {
     super('game');
+  }
+
+  preload() {
+    this.musicName = ['music_winter', 'music_toccata', 'music_daybreak'][Math.floor(Math.random() * 3)];
+
+    this.load.audio(this.musicName, [`./src/assets/audio/${this.musicName}.mp3`]);
   }
 
   init() {
@@ -10,8 +101,6 @@ export default class Game extends Phaser.Scene {
     this.cameraHeight = 600;
     this.mapWidth = 2048;
     this.mapHeight = 2048;
-    this.playerVelocity = 300;
-    this.playerScore = 0;
 
     this.enemyVelocity = 200;
     this.maximumEnemyQuantity = 10;
@@ -23,9 +112,7 @@ export default class Game extends Phaser.Scene {
     this.asteroidSpawnRateInMilliseconds = 1000;
     this.asteroidSpawnRateInterval;
 
-    this.playerInitialHealth = 10;
     this.player;
-    this.playerHpText;
     this.playerScoreText;
 
     this.enemyGroup;
@@ -35,41 +122,14 @@ export default class Game extends Phaser.Scene {
 
     this.cursors;
 
-    this.canFire = 1;
     this.enemyFireRate = 0;
-  }
-
-  preload() {
-    this.load.image('ship', './src/assets/img/ship_1.png');
-    this.load.spritesheet('bullet', './src/assets/img/shot.png', {
-      frameWidth: 48,
-      frameHeigth: 48,
-    });
-    this.load.image('asteroid', './src/assets/img/astr.png');
-    this.load.image('enemy', './src/assets/img/ship_3.png');
-    this.load.image('enemy2', './src/assets/img/ship_4.png');
-    this.load.audio('music', ['./src/assets/audio/musicaFOda.mp3']);
-    this.load.audio('fireSound', './src/assets/audio/shotfire.wav');
-    this.load.audio('deathEnemy', './src/assets/audio/enemyDeath.wav');
-
-    this.load.image('left-cap-red', './src/assets/img/barHorizontal_red_left.png');
-    this.load.image('middle-red', './src/assets/img/barHorizontal_red_mid.png');
-    this.load.image('right-cap-red', './src/assets/img/barHorizontal_red_right.png');
-
-    this.load.image('left-cap-green', './src/assets/img/barHorizontal_green_left.png');
-    this.load.image('middle-green', './src/assets/img/barHorizontal_green_mid.png');
-    this.load.image('right-cap-green', './src/assets/img/barHorizontal_green_right.png');
-
-    this.load.image('left-cap-shadow', './src/assets/img/barHorizontal_shadow_left.png');
-    this.load.image('middle-shadow', './src/assets/img/barHorizontal_shadow_mid.png');
-    this.load.image('right-cap-shadow', './src/assets/img/barHorizontal_shadow_right.png');
   }
 
   create() {
     this.addSounds();
+    this.createGroups();
     this.addSprites();
     this.addTexts();
-    this.createGroups();
     this.addInputs();
     this.addPhysics();
     this.setCamera();
@@ -96,23 +156,23 @@ export default class Game extends Phaser.Scene {
     }
 
     if (upIsPressed) {
-      this.updateVelocity(this.player, this.playerVelocity);
+      this.player.updateVelocity(this.player.playerVelocity);
     } else if (downIsPressed) {
-      this.updateVelocity(this.player, -this.playerVelocity);
+      this.player.updateVelocity(-this.player.playerVelocity);
     }
 
-    if (spaceIsPressed && this.canFire == 1) {
-      this.shoot(this.player, this.playerGroupBullets);
-      this.canFire = 0;
+    if (spaceIsPressed && this.player.canFire == 1) {
+      this.player.shoot();
+      this.player.canFire = 0;
     }
-    if (spaceIsUp && this.canFire == 0) {
-      this.canFire = 1;
+    if (spaceIsUp && this.player.canFire == 0) {
+      this.player.canFire = 1;
     }
 
     this.moveEnemy();
     this.moveAsteroid();
 
-    const playerHasDied = this.player.getData('health') <= 0;
+    const playerHasDied = this.player.health <= 0;
     if (playerHasDied) {
       this.onDeath();
     }
@@ -130,7 +190,8 @@ export default class Game extends Phaser.Scene {
       const hasntSpawnedAllEnemies = this.enemyGroup.children.entries.length < this.maximumEnemyQuantity;
       if (hasntSpawnedAllEnemies) {
         const { randomPosX, randomPosY } = this.generateRandomPosOutsideScreen();
-        const enemy = this.enemyGroup.create(randomPosX, randomPosY, 'enemy');
+        const enemy = new EntityShooter(this, randomPosX, randomPosY, 'enemy', 2, this.enemyGroupBullets);
+        this.enemyGroup.add(enemy);
         enemy.setCollideWorldBounds(true);
         this.physics.add.collider(enemy, this.enemyGroup);
       }
@@ -160,7 +221,7 @@ export default class Game extends Phaser.Scene {
   }
 
   addSounds() {
-    const music = this.sound.add('music', { volume: 0.2 });
+    const music = this.sound.add(this.musicName, { volume: 0.2 });
     music.loop = true;
 
     music.play();
@@ -175,12 +236,12 @@ export default class Game extends Phaser.Scene {
     });
     this.add.tileSprite(0, 0, this.mapWidth, this.mapHeight, 'space').setOrigin(0);
 
-    this.player = this.physics.add.image(this.mapWidth / 2, this.mapHeight / 2, 'ship');
-    this.player.setData('health', this.playerInitialHealth);
+    this.player = new Player(this, this.mapWidth / 2, this.mapHeight / 2, 'ship', this.playerInitialHealth, this.playerGroupBullets);
+    this.children.bringToTop(this.player);
   }
 
   addTexts() {
-    this.playerScoreText = this.add.text(10, 40, `Score: ${this.playerScore}`).setScrollFactor(0, 0);
+    this.playerScoreText = this.add.text(10, 40, `Score: ${this.player.playerScore}`).setScrollFactor(0, 0);
   }
 
   createGroups() {
@@ -290,48 +351,31 @@ export default class Game extends Phaser.Scene {
     return { randomPosX, randomPosY };
   }
 
-  shoot(entity, bulletGroup) {
-    const bulletVelocity = 800;
-    const bullet = bulletGroup.create(entity.x, entity.y, 'bullet');
-    bullet.angle = entity.angle;
-    bullet.setScale(2);
-
-    this.children.bringToTop(entity);
-    this.updateVelocity(bullet, bulletVelocity);
-
-    bullet.setCollideWorldBounds(true);
-    bullet.body.onWorldBounds = true;
-
-    const fire = this.sound.add('fireSound', { volume: 0.2 });
-    fire.loop = false;
-    fire.play();
-  }
-
   destroyEntities(entityA, entityB) {
     entityA?.destroy();
     entityB?.destroy();
   }
 
   addScore() {
-    this.playerScore += 1;
+    this.player.playerScore += 1;
     this.playerScoreText.destroy();
-    this.playerScoreText = this.add.text(10, 40, `Score: ${this.playerScore}`).setScrollFactor(0, 0);
+    this.playerScoreText = this.add.text(10, 40, `Score: ${this.player.playerScore}`).setScrollFactor(0, 0);
   }
 
   increaseHealth(player, health = 1) {
-    const playerHealth = player.getData('health');
+    const playerHealth = player.health;
     if (!this.playerIsLow(playerHealth)) {
       player.tint = 0xffffff;
     }
     if (playerHealth < this.playerInitialHealth) {
-      player.incData('health', health);
+      player.health += health;
     }
 
     this.updateHealthHud();
   }
 
   decreaseHealth(player, damage = 1) {
-    player.incData('health', -damage);
+    player.health -= damage;
 
     if (this.playerIsLow(player)) {
       player.tint = 0xff0000;
@@ -364,7 +408,7 @@ export default class Game extends Phaser.Scene {
       .image(this.middleShadowCap.x + this.middleShadowCap.displayWidth, y, 'right-cap-shadow')
       .setOrigin(0, 0.5);
 
-    if (this.playerIsLow(this.player.getData('health'))) {
+    if (this.playerIsLow(this.player.health)) {
       this.leftCap = this.add.image(x, y, 'left-cap-red').setOrigin(0, 0.5);
       this.middle = this.add.image(this.leftCap.x + this.leftCap.width, y, 'middle-red').setOrigin(0, 0.5);
       this.rightCap = this.add.image(this.middle.x + this.middle.displayWidth, y, 'right-cap-red').setOrigin(0, 0.5);
@@ -376,7 +420,7 @@ export default class Game extends Phaser.Scene {
 
     this.setHudScrollFactor();
 
-    this.setMeterPercentage(this.player.getData('health') / this.playerInitialHealth);
+    this.setMeterPercentage(this.player.health / this.playerInitialHealth);
   }
 
   setMeterPercentage(percent = 1) {
@@ -418,10 +462,10 @@ export default class Game extends Phaser.Scene {
       const enemyIsOnScreen = this.cameras.main.cull([enemy]).length > 0;
 
       if (enemyWillShoot && enemyIsOnScreen) {
-        this.shoot(enemy, this.enemyGroupBullets);
+        enemy.shoot();
       }
 
-      this.updateVelocity(enemy, this.enemyVelocity);
+      enemy.updateVelocity(this.enemyVelocity);
     });
   }
 
