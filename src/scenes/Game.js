@@ -1,46 +1,11 @@
-class HealthBar {
-  constructor(scene, x, y, value) {
-    this.bar = new Phaser.GameObjects.Graphics(scene);
-
-    this.x = x;
-    this.y = y;
-    this.value = value;
-    this.p = 76 / value;
-
-    this.draw();
-
-    scene.add.existing(this.bar);
-  }
-
-  draw() {
-    this.bar.clear();
-
-    //  BG
-    this.bar.fillStyle(0x000000);
-    this.bar.fillRect(this.x, this.y, 80, 16);
-
-    //  Health
-    this.bar.fillStyle(0xffffff);
-    this.bar.fillRect(this.x + 2, this.y + 2, 76, 12);
-
-    if (this.value < 30) {
-      this.bar.fillStyle(0xff0000);
-    } else {
-      this.bar.fillStyle(0x00ff00);
-    }
-
-    const d = Math.floor(this.p * this.value);
-
-    this.bar.fillRect(this.x + 2, this.y + 2, d, 12);
-  }
-}
-
 export default class Game extends Phaser.Scene {
   constructor() {
     super('game');
   }
 
   init() {
+    this.healthBarFullWidth = 150;
+
     this.cameraWidth = 800;
     this.cameraHeight = 600;
     this.mapWidth = 2048;
@@ -58,7 +23,7 @@ export default class Game extends Phaser.Scene {
     this.asteroidSpawnRateInMilliseconds = 1000;
     this.asteroidSpawnRateInterval;
 
-    this.playerInitialHealth = 100;
+    this.playerInitialHealth = 10;
     this.player;
     this.playerHpText;
     this.playerScoreText;
@@ -69,7 +34,6 @@ export default class Game extends Phaser.Scene {
     this.asteroidGroup;
 
     this.cursors;
-    this.healthBar;
 
     this.canFire = 1;
     this.enemyFireRate = 0;
@@ -84,9 +48,21 @@ export default class Game extends Phaser.Scene {
     this.load.image('asteroid', './src/assets/img/astr.png');
     this.load.image('enemy', './src/assets/img/ship_3.png');
     this.load.image('enemy2', './src/assets/img/ship_4.png');
-    this.load.audio('music', ['./src/assets/audio/BackOnTrack.mp3', './src/assets/audio/BackOnTrack.ogg']);
+    this.load.audio('music', ['./src/assets/audio/musicaFOda.mp3']);
     this.load.audio('fireSound', './src/assets/audio/shotfire.wav');
     this.load.audio('deathEnemy', './src/assets/audio/enemyDeath.wav');
+
+    this.load.image('left-cap-red', './src/assets/img/barHorizontal_red_left.png');
+    this.load.image('middle-red', './src/assets/img/barHorizontal_red_mid.png');
+    this.load.image('right-cap-red', './src/assets/img/barHorizontal_red_right.png');
+
+    this.load.image('left-cap-green', './src/assets/img/barHorizontal_green_left.png');
+    this.load.image('middle-green', './src/assets/img/barHorizontal_green_mid.png');
+    this.load.image('right-cap-green', './src/assets/img/barHorizontal_green_right.png');
+
+    this.load.image('left-cap-shadow', './src/assets/img/barHorizontal_shadow_left.png');
+    this.load.image('middle-shadow', './src/assets/img/barHorizontal_shadow_mid.png');
+    this.load.image('right-cap-shadow', './src/assets/img/barHorizontal_shadow_right.png');
   }
 
   create() {
@@ -97,15 +73,12 @@ export default class Game extends Phaser.Scene {
     this.addInputs();
     this.addPhysics();
     this.setCamera();
-    this.setHealth();
+    this.updateHealthHud();
     this.startGame();
   }
 
   update() {
     this.updateVelocity(this.player, 0);
-    this.updateHud();
-    
-
     this.children.bringToTop(this.playerScoreText);
     this.children.bringToTop(this.healthBar);
 
@@ -124,10 +97,8 @@ export default class Game extends Phaser.Scene {
 
     if (upIsPressed) {
       this.updateVelocity(this.player, this.playerVelocity);
-      this.updateHud();
     } else if (downIsPressed) {
       this.updateVelocity(this.player, -this.playerVelocity);
-      this.updateHud();
     }
 
     if (spaceIsPressed && this.canFire == 1) {
@@ -152,15 +123,6 @@ export default class Game extends Phaser.Scene {
     clearInterval(this.enemySpawnRateInterval);
     clearInterval(this.asteroidSpawnRateInterval);
     this.scene.launch('end');
-  }
-
-  setHealth() {
-    this.healthBar = new HealthBar(
-      this,
-      this.player.body.position.x + 50 - this.cameraWidth / 2,
-      this.player.body.position.y + 50 - this.cameraHeight / 2,
-      this.playerInitialHealth
-    );
   }
 
   startGame() {
@@ -218,11 +180,7 @@ export default class Game extends Phaser.Scene {
   }
 
   addTexts() {
-    this.playerScoreText = this.add.text(
-      this.player.body.x - this.cameraWidth / 2,
-      this.player.body.y - this.cameraHeight / 2,
-      this.playerScore
-    );
+    this.playerScoreText = this.add.text(10, 40, `Score: ${this.playerScore}`).setScrollFactor(0, 0);
   }
 
   createGroups() {
@@ -243,7 +201,7 @@ export default class Game extends Phaser.Scene {
         this.destroyEntities(playerBullet, enemy);
         this.increaseHealth(this.player);
         this.addScore();
-        const destroyEnemy = this.sound.add('deathEnemy', {volume: 0.2});
+        const destroyEnemy = this.sound.add('deathEnemy', { volume: 0.2 });
         destroyEnemy.loop = false;
         destroyEnemy.play();
       },
@@ -256,7 +214,7 @@ export default class Game extends Phaser.Scene {
       this.enemyGroup,
       (player, enemy) => {
         this.destroyEntities(enemy);
-        this.decreaseHealth(player, 10);
+        this.decreaseHealth(player);
       },
       null,
       this
@@ -267,7 +225,7 @@ export default class Game extends Phaser.Scene {
       this.asteroidGroup,
       (player, enemy) => {
         this.destroyEntities(enemy);
-        this.decreaseHealth(player, 5);
+        this.decreaseHealth(player);
       },
       null,
       this
@@ -290,7 +248,7 @@ export default class Game extends Phaser.Scene {
       (playerBullet, asteroid) => {
         // TODO: trocar isso pra ser um damageAsteroid (asteroid vai ter vida)
         this.destroyEntities(playerBullet, asteroid);
-        const destroyEnemy = this.sound.add('deathEnemy', {volume: 0.2});
+        const destroyEnemy = this.sound.add('deathEnemy', { volume: 0.2 });
         destroyEnemy.loop = false;
         destroyEnemy.play();
       },
@@ -356,40 +314,94 @@ export default class Game extends Phaser.Scene {
 
   addScore() {
     this.playerScore += 1;
+    this.playerScoreText.destroy();
+    this.playerScoreText = this.add.text(10, 40, `Score: ${this.playerScore}`).setScrollFactor(0, 0);
   }
 
   increaseHealth(player, health = 1) {
-    if (player.getData('health') > this.playerInitialHealth * 0.3) {
+    const playerHealth = player.getData('health');
+    if (!this.playerIsLow(playerHealth)) {
       player.tint = 0xffffff;
     }
-    player.incData('health', health);
+    if (playerHealth < this.playerInitialHealth) {
+      player.incData('health', health);
+    }
+
+    this.updateHealthHud();
   }
 
   decreaseHealth(player, damage = 1) {
     player.incData('health', -damage);
 
-    if (player.getData('health') < this.playerInitialHealth * 0.3) {
+    if (this.playerIsLow(player)) {
       player.tint = 0xff0000;
     }
+
+    this.updateHealthHud();
+  }
+
+  playerIsLow(playerHealth) {
+    return playerHealth < this.playerInitialHealth * 0.3;
   }
 
   updateVelocity(entity, velocity) {
     this.sys.arcadePhysics.velocityFromAngle(entity.angle - 90, velocity, entity.body.velocity);
-    entity.body.x = Math.floor(entity.body.x );
-    entity.body.y = Math.floor(entity.body.y );
+    entity.x = Math.floor(entity.x);
+    entity.y = Math.floor(entity.y);
   }
 
-  updateHud() {
-    const cantoX = this.player.body.x -this.cameraWidth/2+50 ;
-    const cantoY = this.player.body.y -this.cameraHeight/2+50;
-    this.healthBar.value = Math.max(this.player.getData('health'), 0);
-    this.healthBar.x = cantoX + 10;
-    this.healthBar.y = cantoY + 10;
-    this.healthBar.draw();
+  updateHealthHud() {
+    this.resetHealthHud();
+    const x = 10;
+    const y = 24;
 
-    this.playerScoreText.x = cantoX + 10;
-    this.playerScoreText.y = cantoY + 30;
-    this.playerScoreText.text = `Score: ${Math.floor(this.playerScore)}`;
+    this.leftShadowCap = this.add.image(x, y, 'left-cap-shadow').setOrigin(0, 0.5);
+
+    this.middleShadowCap = this.add.image(this.leftShadowCap.x + this.leftShadowCap.width, y, 'middle-shadow').setOrigin(0, 0.5);
+    this.middleShadowCap.displayWidth = this.healthBarFullWidth;
+
+    this.rightShadowCap = this.add
+      .image(this.middleShadowCap.x + this.middleShadowCap.displayWidth, y, 'right-cap-shadow')
+      .setOrigin(0, 0.5);
+
+    if (this.playerIsLow(this.player.getData('health'))) {
+      this.leftCap = this.add.image(x, y, 'left-cap-red').setOrigin(0, 0.5);
+      this.middle = this.add.image(this.leftCap.x + this.leftCap.width, y, 'middle-red').setOrigin(0, 0.5);
+      this.rightCap = this.add.image(this.middle.x + this.middle.displayWidth, y, 'right-cap-red').setOrigin(0, 0.5);
+    } else {
+      this.leftCap = this.add.image(x, y, 'left-cap-green').setOrigin(0, 0.5);
+      this.middle = this.add.image(this.leftCap.x + this.leftCap.width, y, 'middle-green').setOrigin(0, 0.5);
+      this.rightCap = this.add.image(this.middle.x + this.middle.displayWidth, y, 'right-cap-green').setOrigin(0, 0.5);
+    }
+
+    this.setHudScrollFactor();
+
+    this.setMeterPercentage(this.player.getData('health') / this.playerInitialHealth);
+  }
+
+  setMeterPercentage(percent = 1) {
+    const width = this.healthBarFullWidth * percent;
+
+    this.middle.displayWidth = width;
+    this.rightCap.x = this.middle.x + this.middle.displayWidth;
+  }
+
+  resetHealthHud() {
+    this.leftShadowCap?.destroy();
+    this.middleShadowCap?.destroy();
+    this.rightShadowCap?.destroy();
+    this.leftCap?.destroy();
+    this.middle?.destroy();
+    this.rightCap?.destroy();
+  }
+
+  setHudScrollFactor() {
+    this.leftShadowCap?.setScrollFactor(0, 0);
+    this.middleShadowCap?.setScrollFactor(0, 0);
+    this.rightShadowCap?.setScrollFactor(0, 0);
+    this.leftCap?.setScrollFactor(0, 0);
+    this.middle?.setScrollFactor(0, 0);
+    this.rightCap?.setScrollFactor(0, 0);
   }
 
   moveEnemy() {
@@ -404,6 +416,7 @@ export default class Game extends Phaser.Scene {
 
       const enemyWillShoot = this.enemyFireRate > 0;
       const enemyIsOnScreen = this.cameras.main.cull([enemy]).length > 0;
+
       if (enemyWillShoot && enemyIsOnScreen) {
         this.shoot(enemy, this.enemyGroupBullets);
       }
