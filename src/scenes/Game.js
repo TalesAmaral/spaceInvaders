@@ -85,6 +85,8 @@ export default class Game extends Phaser.Scene {
     this.load.image('enemy', './src/assets/img/ship_3.png');
     this.load.image('enemy2', './src/assets/img/ship_4.png');
     this.load.audio('music', ['./src/assets/audio/BackOnTrack.mp3', './src/assets/audio/BackOnTrack.ogg']);
+    this.load.audio('fireSound', './src/assets/audio/shotfire.wav');
+    this.load.audio('deathEnemy', './src/assets/audio/enemyDeath.wav');
   }
 
   create() {
@@ -101,8 +103,8 @@ export default class Game extends Phaser.Scene {
 
   update() {
     this.updateVelocity(this.player, 0);
-
     this.updateHud();
+    
 
     this.children.bringToTop(this.playerScoreText);
     this.children.bringToTop(this.healthBar);
@@ -122,8 +124,10 @@ export default class Game extends Phaser.Scene {
 
     if (upIsPressed) {
       this.updateVelocity(this.player, this.playerVelocity);
+      this.updateHud();
     } else if (downIsPressed) {
       this.updateVelocity(this.player, -this.playerVelocity);
+      this.updateHud();
     }
 
     if (spaceIsPressed && this.canFire == 1) {
@@ -239,6 +243,9 @@ export default class Game extends Phaser.Scene {
         this.destroyEntities(playerBullet, enemy);
         this.increaseHealth(this.player);
         this.addScore();
+        const destroyEnemy = this.sound.add('deathEnemy', {volume: 0.2});
+        destroyEnemy.loop = false;
+        destroyEnemy.play();
       },
       null,
       this
@@ -283,6 +290,9 @@ export default class Game extends Phaser.Scene {
       (playerBullet, asteroid) => {
         // TODO: trocar isso pra ser um damageAsteroid (asteroid vai ter vida)
         this.destroyEntities(playerBullet, asteroid);
+        const destroyEnemy = this.sound.add('deathEnemy', {volume: 0.2});
+        destroyEnemy.loop = false;
+        destroyEnemy.play();
       },
       null,
       this
@@ -333,6 +343,10 @@ export default class Game extends Phaser.Scene {
 
     bullet.setCollideWorldBounds(true);
     bullet.body.onWorldBounds = true;
+
+    const fire = this.sound.add('fireSound', { volume: 0.2 });
+    fire.loop = false;
+    fire.play();
   }
 
   destroyEntities(entityA, entityB) {
@@ -361,11 +375,13 @@ export default class Game extends Phaser.Scene {
 
   updateVelocity(entity, velocity) {
     this.sys.arcadePhysics.velocityFromAngle(entity.angle - 90, velocity, entity.body.velocity);
+    entity.body.x = Math.floor(entity.body.x );
+    entity.body.y = Math.floor(entity.body.y );
   }
 
   updateHud() {
-    const cantoX = this.cameras.main.scrollX;
-    const cantoY = this.cameras.main.scrollY;
+    const cantoX = this.player.body.x -this.cameraWidth/2+50 ;
+    const cantoY = this.player.body.y -this.cameraHeight/2+50;
     this.healthBar.value = Math.max(this.player.getData('health'), 0);
     this.healthBar.x = cantoX + 10;
     this.healthBar.y = cantoY + 10;
