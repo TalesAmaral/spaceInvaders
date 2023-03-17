@@ -1,10 +1,14 @@
+import Phaser from "../lib/phaser.js";
+
 class Entity extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, sprite, health) {
     super(scene, x, y, sprite);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.health = health;
+
   }
+
 
   updateVelocity(velocity) {
     this.scene.sys.arcadePhysics.velocityFromAngle(this.angle - 90, velocity, this.body.velocity);
@@ -12,25 +16,26 @@ class Entity extends Phaser.Physics.Arcade.Sprite {
     this.y = Math.floor(this.y);
   }
 
-  decreaseHealth(player, damage = 1) {
-    player.health -= damage;
-
-    if (this.playerIsLow(player)) {
-      player.tint = 0xff0000;
-    }
-
-    this.updateHealthHud();
+  decreaseHealth(damage = 1) {
+    this.health -= damage;
   }
 
-  destroySelf() {
-    this.sprite.destroy();
+  healPlayer(){
+    this.scene.player.increaseHealth();
+    this.scene.addScore();
+    this.destroySelf();
   }
+  destroySelf(){
+    this.destroy();
+  }
+
 }
 
 class EntityShooter extends Entity {
   constructor(scene, x, y, sprite, health, bulletGroup) {
     super(scene, x, y, sprite, health);
     this.bulletGroup = bulletGroup;
+    this.canFire = 5;
   }
 
   shoot() {
@@ -59,6 +64,7 @@ class Player extends EntityShooter {
     this.playerVelocity = 300;
     this.playerScore = 0;
     this.canFire = 1;
+    this.frameBack = true; 
   }
 
   playerIsLow() {
@@ -66,20 +72,55 @@ class Player extends EntityShooter {
   }
 
   increaseHealth(health = 1) {
-    if (!this.playerIsLow()) {
-      this.tint = 0xffffff;
-    }
     if (this.health < this.playerInitialHealth) {
       this.health += health;
     }
 
-    this.updateHealthHud();
+    this.scene.updateHealthHud();
   }
 
-  decreaseHealth(player, damage = 1) {
-    super.decreaseHealth(player, damage);
+  decreaseHealth(damage = 1) {
+    this.health -= damage;
 
-    this.updateHealthHud();
+    this.scene.updateHealthHud();
+  }
+  movePlayer(){
+
+    const leftIsPressed = this.scene.cursors.left.isDown;
+    const rightIsPressed = this.scene.cursors.right.isDown;
+    const upIsPressed = this.scene.cursors.up.isDown;
+    const downIsPressed = this.scene.cursors.down.isDown;
+    const spaceIsPressed = this.scene.cursors.space.isDown;
+    const spaceIsUp = this.scene.cursors.space.isUp;
+    const ctrlIsPressed = this.scene.cursors.down.ctrlKey;
+
+    if (leftIsPressed) {
+      this.angle -= 5;
+    } else if (rightIsPressed) {
+      this.angle += 5;
+    }
+
+    if (upIsPressed) {
+      this.updateVelocity(this.playerVelocity);
+    } else if (downIsPressed) {
+      if (ctrlIsPressed && this.frameBack ){ 
+        this.setRotation(this.rotation+Math.PI);;
+        this.frameBack = false;
+      }
+      this.updateVelocity(-this.playerVelocity);
+    }
+
+    if (spaceIsPressed && this.canFire == 1) {
+      this.shoot();
+      this.canFire = 0;
+    }
+    if (spaceIsUp && this.canFire == 0) {
+      this.canFire = 1;
+    }
+
+    if (this.scene.cursors.down.isUp){
+      this.frameBack = true;
+    }
   }
 }
 
@@ -89,9 +130,8 @@ export default class Game extends Phaser.Scene {
   }
 
   preload() {
-    this.musicName = ['music_winter', 'music_toccata', 'music_daybreak'][Math.floor(Math.random() * 3)];
 
-    this.load.audio(this.musicName, [`./src/assets/audio/${this.musicName}.mp3`]);
+   
   }
 
   init() {
@@ -107,22 +147,33 @@ export default class Game extends Phaser.Scene {
     this.enemySpawnRateInMilliseconds = 1000;
     this.enemySpawnRateInterval;
 
-    this.asteroidVelocity = 100;
+
+    this.enemyMeleeVelocity = 250;
+    this.maximumEnemyMeleeQuantity = 5;
+    this.enemyMeleeSpawnRateInMilliseconds = 1000;
+    this.enemyMeleeSpawnRateInterval;
+
+
+    this.asteroidVelocity = 150;
     this.maximumAsteroidQuantity = 20;
     this.asteroidSpawnRateInMilliseconds = 1000;
     this.asteroidSpawnRateInterval;
+    this.buffAsteroidSpawnRateInterval;
 
+
+    this.maximumBuffAsteroid = 5;
     this.player;
     this.playerScoreText;
+    this.playerInitialHealth = 10;
 
-    this.enemyGroup;
-    this.enemyGroupBullets;
+    this.enemyShooterGroup;
+    this.enemyShooterGroupBullets;
     this.playerGroupBullets;
     this.asteroidGroup;
-
+    this.destroyEnemy = this.sound.add('deathEnemy', { volume: 0.2 });
+    this.destroyEnemy.loop = false;
     this.cursors;
 
-    this.enemyFireRate = 0;
   }
 
   create() {
@@ -138,40 +189,15 @@ export default class Game extends Phaser.Scene {
   }
 
   update() {
-    this.updateVelocity(this.player, 0);
+    this.player.updateVelocity( 0);
     this.children.bringToTop(this.playerScoreText);
     this.children.bringToTop(this.healthBar);
 
-    const leftIsPressed = this.cursors.left.isDown;
-    const rightIsPressed = this.cursors.right.isDown;
-    const upIsPressed = this.cursors.up.isDown;
-    const downIsPressed = this.cursors.down.isDown;
-    const spaceIsPressed = this.cursors.space.isDown;
-    const spaceIsUp = this.cursors.space.isUp;
+    this.player.movePlayer();
 
-    if (leftIsPressed) {
-      this.player.angle -= 5;
-    } else if (rightIsPressed) {
-      this.player.angle += 5;
-    }
-
-    if (upIsPressed) {
-      this.player.updateVelocity(this.player.playerVelocity);
-    } else if (downIsPressed) {
-      this.player.updateVelocity(-this.player.playerVelocity);
-    }
-
-    if (spaceIsPressed && this.player.canFire == 1) {
-      this.player.shoot();
-      this.player.canFire = 0;
-    }
-    if (spaceIsUp && this.player.canFire == 0) {
-      this.player.canFire = 1;
-    }
-
-    this.moveEnemy();
+    this.moveEnemyShooter();
     this.moveAsteroid();
-
+    this.moveEnemyMelee()
     const playerHasDied = this.player.health <= 0;
     if (playerHasDied) {
       this.onDeath();
@@ -182,27 +208,55 @@ export default class Game extends Phaser.Scene {
     this.scene.pause();
     clearInterval(this.enemySpawnRateInterval);
     clearInterval(this.asteroidSpawnRateInterval);
-    this.scene.launch('end');
+    this.scene.launch('end', { score: this.player.playerScore});
   }
 
   startGame() {
     this.enemySpawnRateInterval = setInterval(() => {
-      const hasntSpawnedAllEnemies = this.enemyGroup.children.entries.length < this.maximumEnemyQuantity;
+      const hasntSpawnedAllEnemies = this.enemyShooterGroup.children.entries.length < this.maximumEnemyQuantity;
       if (hasntSpawnedAllEnemies) {
         const { randomPosX, randomPosY } = this.generateRandomPosOutsideScreen();
-        const enemy = new EntityShooter(this, randomPosX, randomPosY, 'enemy', 2, this.enemyGroupBullets);
-        this.enemyGroup.add(enemy);
+        const enemy = new EntityShooter(this, randomPosX, randomPosY, 'enemy', 1, this.enemyShooterGroupBullets);
+        this.enemyShooterGroup.add(enemy);
         enemy.setCollideWorldBounds(true);
-        this.physics.add.collider(enemy, this.enemyGroup);
+        this.physics.add.collider(enemy, this.enemyShooterGroup);
+        this.physics.add.collider(enemy, this.enemyMeleeGroup);
       }
     }, this.enemySpawnRateInMilliseconds);
+
+    this.enemyMeleeSpawnRateInterval = setInterval(() => {
+      const hasntSpawnedAllEnemies = this.enemyMeleeGroup.children.entries.length < this.maximumEnemyMeleeQuantity;
+      if (hasntSpawnedAllEnemies) {
+        const { randomPosX, randomPosY } = this.generateRandomPosOutsideScreen();
+        const enemy = new Entity(this, randomPosX, randomPosY, 'enemy2', 1);
+        this.enemyMeleeGroup.add(enemy);
+        enemy.setCollideWorldBounds(true);
+        this.physics.add.collider(enemy, this.enemyShooterGroup);
+        this.physics.add.collider(enemy, this.enemyMeleeGroup);
+      }
+    }, this.enemyMeleeSpawnRateInMilliseconds);
+    this.buffAsteroidSpawnRateInterval = setInterval(() => {
+      const { randomPosX, randomPosY } = this.generateRandomPosOutsideScreen();
+      const hasntSpawnedAllAsteroids = this.asteroidGroup.children.entries.length < this.maximumAsteroidQuantity+this.maximumBuffAsteroid;
+      if (hasntSpawnedAllAsteroids) {
+        const asteroid = new Entity(this, randomPosX,randomPosY, "asteroid", 5);
+        asteroid.tint = 0xF40000;
+        this.asteroidGroup.add(asteroid);
+        asteroid.setScale((Math.random() / 4) +0.35);
+        asteroid.angle = Math.floor(Math.random() * 181);
+        asteroid.setCollideWorldBounds(true);
+        asteroid.body.onWorldBounds = true;
+        
+      } 
+    }, this.asteroidSpawnRateInMilliseconds*5);
 
     this.asteroidSpawnRateInterval = setInterval(() => {
       const { randomPosX, randomPosY } = this.generateRandomPosOutsideScreen();
       const hasntSpawnedAllAsteroids = this.asteroidGroup.children.entries.length < this.maximumAsteroidQuantity;
       if (hasntSpawnedAllAsteroids) {
-        const asteroid = this.asteroidGroup.create(randomPosX, randomPosY, 'asteroid');
-        asteroid.setScale(Math.random() / 4);
+        const asteroid = new Entity(this, randomPosX,randomPosY, "asteroid", 2)
+        this.asteroidGroup.add(asteroid);
+        asteroid.setScale((Math.random() / 4) +0.2);
         asteroid.angle = Math.floor(Math.random() * 181);
         asteroid.setCollideWorldBounds(true);
         asteroid.body.onWorldBounds = true;
@@ -213,6 +267,7 @@ export default class Game extends Phaser.Scene {
           asteroid.y = randomPosY;
           asteroid.setActive(true);
           asteroid.setVisible(true);
+          asteroid.tint = 0xFFFFFF;
           asteroid.setScale(Math.random() / 4);
           asteroid.angle = Math.floor(Math.random() * 181);
         }
@@ -221,7 +276,7 @@ export default class Game extends Phaser.Scene {
   }
 
   addSounds() {
-    const music = this.sound.add(this.musicName, { volume: 0.2 });
+    const music = this.sound.add("winter", { volume: 0.2 });
     music.loop = true;
 
     music.play();
@@ -245,8 +300,9 @@ export default class Game extends Phaser.Scene {
   }
 
   createGroups() {
-    this.enemyGroup = this.physics.add.group();
-    this.enemyGroupBullets = this.physics.add.group();
+    this.enemyShooterGroup = this.physics.add.group();
+    this.enemyMeleeGroup = this.physics.add.group();
+    this.enemyShooterGroupBullets = this.physics.add.group();
     this.playerGroupBullets = this.physics.add.group();
     this.asteroidGroup = this.physics.add.group();
   }
@@ -257,14 +313,42 @@ export default class Game extends Phaser.Scene {
 
     this.physics.add.collider(
       this.playerGroupBullets,
-      this.enemyGroup,
+      this.enemyShooterGroup,
       (playerBullet, enemy) => {
-        this.destroyEntities(playerBullet, enemy);
-        this.increaseHealth(this.player);
-        this.addScore();
-        const destroyEnemy = this.sound.add('deathEnemy', { volume: 0.2 });
-        destroyEnemy.loop = false;
-        destroyEnemy.play();
+        playerBullet.destroySelf();
+        enemy.decreaseHealth();
+        if (enemy.health <=0){
+          enemy.healPlayer();
+          this.destroyEnemy.play();
+        }
+
+      },
+      null,
+      this
+    );
+
+    this.physics.add.collider(
+      this.playerGroupBullets,
+      this.enemyMeleeGroup,
+      (playerBullet, enemy) => {
+        playerBullet.destroySelf();
+        enemy.decreaseHealth();
+        if (enemy.health <=0){
+          enemy.healPlayer();
+          this.destroyEnemy.play();
+        }
+
+      },
+      null,
+      this
+    );
+    this.physics.add.collider(
+      this.player,
+      this.enemyShooterGroup,
+      (player, enemy) => {
+        enemy.destroySelf();
+        player.decreaseHealth(3);
+        this.destroyEnemy.play();
       },
       null,
       this
@@ -272,21 +356,22 @@ export default class Game extends Phaser.Scene {
 
     this.physics.add.collider(
       this.player,
-      this.enemyGroup,
+      this.enemyMeleeGroup,
       (player, enemy) => {
-        this.destroyEntities(enemy);
-        this.decreaseHealth(player);
+        enemy.destroySelf();
+        player.decreaseHealth(3);
+        this.destroyEnemy.play();
       },
       null,
       this
     );
-
     this.physics.add.collider(
       this.player,
       this.asteroidGroup,
       (player, enemy) => {
-        this.destroyEntities(enemy);
-        this.decreaseHealth(player);
+        enemy.destroySelf();
+        player.decreaseHealth(5);
+        this.destroyEnemy.play();
       },
       null,
       this
@@ -294,10 +379,10 @@ export default class Game extends Phaser.Scene {
 
     this.physics.add.collider(
       this.player,
-      this.enemyGroupBullets,
+      this.enemyShooterGroupBullets,
       (player, enemyBullet) => {
-        this.destroyEntities(enemyBullet);
-        this.decreaseHealth(player);
+        enemyBullet.destroySelf();
+        player.decreaseHealth();
       },
       null,
       this
@@ -307,11 +392,14 @@ export default class Game extends Phaser.Scene {
       this.playerGroupBullets,
       this.asteroidGroup,
       (playerBullet, asteroid) => {
-        // TODO: trocar isso pra ser um damageAsteroid (asteroid vai ter vida)
-        this.destroyEntities(playerBullet, asteroid);
-        const destroyEnemy = this.sound.add('deathEnemy', { volume: 0.2 });
-        destroyEnemy.loop = false;
-        destroyEnemy.play();
+        asteroid.decreaseHealth();
+        playerBullet.destroySelf();
+        if (asteroid.health<=0){
+          asteroid.destroySelf();
+          this.addScore();
+          this.destroyEnemy.play();
+        }
+        
       },
       null,
       this
@@ -320,15 +408,12 @@ export default class Game extends Phaser.Scene {
     this.physics.world.on('worldbounds', (body) => {
       const entity = body.gameObject;
       const isPlayerBullet = this.playerGroupBullets.contains(entity);
-      const isEnemyBullet = this.enemyGroupBullets.contains(entity);
+      const isEnemyBullet = this.enemyShooterGroupBullets.contains(entity);
       const isAsteroid = this.asteroidGroup.contains(entity);
 
-      if (isPlayerBullet || isEnemyBullet) {
+      if (isPlayerBullet || isEnemyBullet || isAsteroid) {
         entity.destroy();
-      } else if (isAsteroid) {
-        entity.setActive(false);
-        entity.setVisible(false);
-      }
+      } 
     });
   }
 
@@ -351,10 +436,7 @@ export default class Game extends Phaser.Scene {
     return { randomPosX, randomPosY };
   }
 
-  destroyEntities(entityA, entityB) {
-    entityA?.destroy();
-    entityB?.destroy();
-  }
+  
 
   addScore() {
     this.player.playerScore += 1;
@@ -362,37 +444,7 @@ export default class Game extends Phaser.Scene {
     this.playerScoreText = this.add.text(10, 40, `Score: ${this.player.playerScore}`).setScrollFactor(0, 0);
   }
 
-  increaseHealth(player, health = 1) {
-    const playerHealth = player.health;
-    if (!this.playerIsLow(playerHealth)) {
-      player.tint = 0xffffff;
-    }
-    if (playerHealth < this.playerInitialHealth) {
-      player.health += health;
-    }
 
-    this.updateHealthHud();
-  }
-
-  decreaseHealth(player, damage = 1) {
-    player.health -= damage;
-
-    if (this.playerIsLow(player)) {
-      player.tint = 0xff0000;
-    }
-
-    this.updateHealthHud();
-  }
-
-  playerIsLow(playerHealth) {
-    return playerHealth < this.playerInitialHealth * 0.3;
-  }
-
-  updateVelocity(entity, velocity) {
-    this.sys.arcadePhysics.velocityFromAngle(entity.angle - 90, velocity, entity.body.velocity);
-    entity.x = Math.floor(entity.x);
-    entity.y = Math.floor(entity.y);
-  }
 
   updateHealthHud() {
     this.resetHealthHud();
@@ -408,7 +460,7 @@ export default class Game extends Phaser.Scene {
       .image(this.middleShadowCap.x + this.middleShadowCap.displayWidth, y, 'right-cap-shadow')
       .setOrigin(0, 0.5);
 
-    if (this.playerIsLow(this.player.health)) {
+    if (this.player.playerIsLow()) {
       this.leftCap = this.add.image(x, y, 'left-cap-red').setOrigin(0, 0.5);
       this.middle = this.add.image(this.leftCap.x + this.leftCap.width, y, 'middle-red').setOrigin(0, 0.5);
       this.rightCap = this.add.image(this.middle.x + this.middle.displayWidth, y, 'right-cap-red').setOrigin(0, 0.5);
@@ -420,7 +472,7 @@ export default class Game extends Phaser.Scene {
 
     this.setHudScrollFactor();
 
-    this.setMeterPercentage(this.player.health / this.playerInitialHealth);
+    this.setMeterPercentage(Math.max(this.player.health,0) / this.player.playerInitialHealth);
   }
 
   setMeterPercentage(percent = 1) {
@@ -448,30 +500,49 @@ export default class Game extends Phaser.Scene {
     this.rightCap?.setScrollFactor(0, 0);
   }
 
-  moveEnemy() {
-    this.enemyFireRate++;
-
-    if (this.enemyFireRate > 1) this.enemyFireRate = -100;
-
-    this.enemyGroup.getChildren().forEach((enemy) => {
-      const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+  moveEnemyShooter() {
+    
+    const x = this.player.x;
+    const y = this.player.y;
+    this.enemyShooterGroup.getChildren().forEach((enemy) => {
+      const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, x, y);
       enemy.setRotation(angle);
       enemy.angle += 90;
 
-      const enemyWillShoot = this.enemyFireRate > 0;
+      const enemyWillShoot = enemy.canFire <= 0 ;
       const enemyIsOnScreen = this.cameras.main.cull([enemy]).length > 0;
 
       if (enemyWillShoot && enemyIsOnScreen) {
         enemy.shoot();
+        enemy.canFire = 100;
       }
-
+      enemy.canFire -= !enemyWillShoot;
+      if ( Phaser.Math.Distance.Between(x , y , enemy.x , enemy.y) >= 250){
+        enemy.updateVelocity(this.enemyVelocity);
+     }else{
+      enemy.setRotation(angle);
       enemy.updateVelocity(this.enemyVelocity);
+      enemy.angle += 90;
+     }
     });
+  }
+  moveEnemyMelee(){
+    const x = this.player.x;
+    const y = this.player.y;
+    this.enemyMeleeGroup.getChildren().forEach((enemy) => {
+      const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, x, y);
+      enemy.setRotation(angle);
+      enemy.angle += 90;
+
+      enemy.updateVelocity(this.enemyMeleeVelocity);
+    
+    });
+
   }
 
   moveAsteroid() {
     this.asteroidGroup.getChildren().forEach((asteroid) => {
-      this.updateVelocity(asteroid, this.asteroidVelocity);
+      asteroid.updateVelocity( this.asteroidVelocity);
     });
   }
 }
