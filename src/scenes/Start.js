@@ -6,6 +6,7 @@ export default class Start extends Phaser.Scene {
   }
 
   preload() {
+    this.load.audio("winter", "./src/assets/audio/music_winter.mp3");
     this.load.image('space', './src/assets/img/SpaceBackground.jpg');
     this.load.image('ship', './src/assets/img/ship_1.png');
     this.load.spritesheet('bullet', './src/assets/img/shot.png', {
@@ -34,12 +35,21 @@ export default class Start extends Phaser.Scene {
 
   create() {
     this.add.tileSprite(0, 0, 800, 600, 'space').setOrigin(0);
-    const textStyle = { color: '#00FF00', fontSize: 50 };
+    const textStyle = { color: '#00FF00', fontSize: 50 ,  boundsAlignH: "center", boundsAlignV: "middle" };
 
-    const text = this.add.text(325, 275, 'START', textStyle).setInteractive();
+    const text = this.add.text(400, 300, 'START', textStyle).setInteractive().setOrigin(0.5);
+    text.setShadow(2, 2, "#000000", 2, true, true);
     text.on('pointerdown', () => {
+      this.scene.stop();
       this.scene.start('game');
       this.game.sound.stopAll();
     });
+    const text1 = this.add.text(400, 350, 'HOW TO PLAY', textStyle).setInteractive().setOrigin(0.5);
+    text1.on('pointerdown', () => {
+      this.scene.stop();
+      this.scene.start('help');
+      this.game.sound.stopAll();
+    });
+    text1.setShadow(2, 2, "#000000", 2, true, true);
   }
 }
