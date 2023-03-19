@@ -359,7 +359,7 @@ export default class Game extends Phaser.Scene {
       this.enemyMeleeGroup,
       (player, enemy) => {
         enemy.destroySelf();
-        player.decreaseHealth(3);
+        player.decreaseHealth(1);
         this.destroyEnemy.play();
       },
       null,
@@ -370,7 +370,7 @@ export default class Game extends Phaser.Scene {
       this.asteroidGroup,
       (player, enemy) => {
         enemy.destroySelf();
-        player.decreaseHealth(5);
+        player.decreaseHealth(4);
         this.destroyEnemy.play();
       },
       null,
